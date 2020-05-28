@@ -1,0 +1,15 @@
+#!/usr/bin/ruby
+
+require 'json'
+
+data = JSON.parse(File.new(ARGV.shift, 'r').read)
+column = ARGV.shift.to_i
+low = ARGV.shift.to_f
+high = ARGV.shift.to_f
+
+data['changes'].each do |change|
+  if change[column] < low or high < change[column]
+    puts change
+    exit 1
+  end
+end
