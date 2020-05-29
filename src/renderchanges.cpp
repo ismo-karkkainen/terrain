@@ -1,7 +1,7 @@
 //
-//  render-changes.cpp
+//  renderchanges.cpp
 //
-//  Created by Ismo Kärkkäinen on 17.5.2020.
+//  Created by Ismo Kärkkäinen on 27.5.2020.
 //  Copyright © 2020 Ismo Kärkkäinen. All rights reserved.
 //
 // Licensed under Universal Permissive License. See License.txt.

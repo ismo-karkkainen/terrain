@@ -8,20 +8,16 @@ output for each line before reading the next line.
 
 # Usage
 
-## generate-changes
+## generatechanges
 
 Program generates and array of coordinates and change radius and offset
-magnitude pairs. Coordinates are in [0, 1] range and form a square.
+magnitude pairs. Coordinates are in [0, 1] range.
 
-Radius is in [0, 1] range and represents a radius of a circle in plane.
+Radius is in [0, 1] range and represents a radius of a circle in plane. Values
+can be modified using radius_min, radius_range, and radius_max.
 
-Offset is in range [-1, 1] and represents change in height.
-
-Radius and offset values can be adjusted by giving 2-dimensional arrays that
-are used to find a matching value for current coordinates.  Minimum, maximum,
-and range can be given. Minimum defaults to 0, maximum to 1 and range to 1.
-There are no sanity checks so maximum can be smaller than minimum etc.
-Range is used only when minimum or maximum is not given.
+Offset is in range [-1, 1] and represents change in height. Values can be
+modified using offset_min, offset_range, and offset_max.
 
 Limiting radius allows you to generate rough terrain by using small values for
 radius. Smooth terrain can be generated using large radiuses.
@@ -32,24 +28,63 @@ last row and the first column should match the last column or you risk having
 a visible discontinuity. Due to random nature of the process as long as the
 first and last row/column are close enough the output should be ok.
 
-The array minimum size is 2x2. There has to be at least 2 rows and each column
-must have minimum size of 2. Row sizes can vary row to row.
+The array minimum size is 1x1. Row sizes can vary row to row.
 Each array is treated independently so they can be of different size.
 Bi-linear interpolation is used to obtain the value.
-
-Input:
-- count: Number of changes to generate. Positive integer.
-- radius_min: Array of arrays of numbers representing map of minimum radiuses.
-- radius_max: Array of arrays of numbers representing map of maximum radiuses.
-- radius_range: Array of arrays of numbers representing map of radius range.
-- offset_min: Array of arrays of numbers representing map of minimum offsets.
-- offset_max: Array of arrays of numbers representing map of maximum offsets.
-- offset_range: Array of arrays of numbers representing map of offset range.
 
 Output:
 - changes: Array of number arrays containing x, y, radius, and offset.
 
-## render-changes
+```
+---
+generate_io:
+  namespace: io
+  types:
+    GenerateIn:
+      count:
+        description: Change count.
+        format: UInt32
+      radius_min:
+        description: |
+          Map of minimum radius values. Minimum size is 2x2 and inner vectors
+          are rows, as with other maps. Default is [[0,0],[0,0]]
+        format: [ ContainerStdVector, StdVector, Float ]
+        required: false
+      radius_max:
+        description: Map of maximum radius values. Default is [[1,1],[1,1]].
+        format: [ ContainerStdVector, StdVector, Float ]
+        required: false
+      radius_range:
+        description: |
+          Map of radius value range. Ignored if both radius_min and radius_max
+          have been given. Default is [[1,1],[1,1]].
+        format: [ ContainerStdVector, StdVector, Float ]
+        required: false
+      offset_min:
+        description: Map of minimum offset values. Default is [[-1,-1],[-1,-1]].
+        format: [ ContainerStdVector, StdVector, Float ]
+        required: false
+      offset_max:
+        description: Map of maximum offset values. Default is [[1,1],[1,1]].
+        format: [ ContainerStdVector, StdVector, Float ]
+        required: false
+      offset_range:
+        description: |
+          Map of offset value ranges. Ignored if both offset_min and offset_max
+          have been given. Default is [[2,2],[2,2]].
+        format: [ ContainerStdVector, StdVector, Float ]
+        required: false
+      seed:
+        description: Seed for random number generator.
+        format: UInt32
+        required: false
+  generate:
+    GenerateIn:
+      parser: true
+...
+```
+
+## renderchanges
 
 Outputs height field as array of rows of height values in JSON object under
 key "heightfield". Renders the changes to a square height field.

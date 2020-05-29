@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(imageio CXX)
+project(terrain CXX)
 
 #### Parameter set-up and library support detection.
 
@@ -34,15 +34,15 @@ endif()
 
 #### Main programs
 
-set(Programs render-changes)
+set(Programs generatechanges renderchanges)
 
 set(Sources src/BlockQueue.cpp src/InputChannel.cpp src/FileDescriptorInput.cpp)
 
 add_custom_target(parsers COMMENT "Generating types from README.md"
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/README.md
-    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io
+    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io
     COMMAND specificjson --input pspecs
-    BYPRODUCTS render_io.cpp render_io.hpp)
+    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp)
 
 function(setup_main_program TGTNAME MAIN IO)
     add_executable(${TGTNAME} ${MAIN} ${Sources} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp)
@@ -52,20 +52,31 @@ function(setup_main_program TGTNAME MAIN IO)
     target_include_directories(${TGTNAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
     target_compile_options(${TGTNAME} PRIVATE ${CxxStd})
     target_compile_options(${TGTNAME} PRIVATE ${BuildOptions})
-    if (UNIX AND NOT APPLE)
-        target_link_libraries(${TGTNAME} PRIVATE Threads::Threads)
-    endif()
 endfunction()
 
-setup_main_program(render-changes src/render-changes.cpp render_io)
+setup_main_program(generatechanges src/generatechanges.cpp generate_io)
+setup_main_program(renderchanges src/renderchanges.cpp render_io)
 
 install(TARGETS ${Programs} RUNTIME DESTINATION bin)
-install(PROGRAMS ${CMAKE_CURRENT_LIST_DIR}/generate-changes RUNTIME DESTINATION bin)
 
 
 #### Tests
 
 enable_testing()
+
+function(setup_unittest_program TGTNAME MAIN IO)
+    add_executable(${TGTNAME} ${MAIN} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp)
+    add_dependencies(${TGTNAME} parsers)
+    target_include_directories(${TGTNAME} SYSTEM PRIVATE /usr/local/include)
+    target_include_directories(${TGTNAME} PRIVATE src)
+    target_include_directories(${TGTNAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    target_compile_definitions(${TGTNAME} PRIVATE UNITTEST)
+    target_compile_options(${TGTNAME} PRIVATE ${CxxStd})
+    target_compile_options(${TGTNAME} PRIVATE ${BuildOptions})
+    add_test(NAME ${TGTNAME} COMMAND ${TGTNAME})
+endfunction()
+
+setup_unittest_program(unittest-generate src/generatechanges.cpp generate_io)
 
 function(add_test_prog PROG)
     add_executable(${PROG} IMPORTED)
@@ -83,12 +94,9 @@ function(new_test4 TEST_NAME PROG EXECUTABLE INPUT LOWR HIGHR LOWO HIGHO A1 A2 A
 endfunction()
 
 add_test_prog(check.sh)
-new_test(minmax check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes minmax.json 0.5 0.5 0.5 0.5)
-new_test(minrange check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes minrange.json 0.5 1.0 -0.5 0.5)
-new_test(maxrange check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes maxrange.json 0 0.5 -0.5 0.5)
-new_test(range check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes range.json 0 0.5 0 1)
-new_test(min check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes min.json 0.5 1.5 0.5 1.5)
-new_test(max check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes max.json -0.5 0.5 -0.5 0.5)
-new_test4(max-minmax check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes max-default.json -0.5 0.5 -1 1 --minimum -1 --maximum 1)
-new_test4(max-maxrange check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes max-default.json -1.5 0.5 -1 1 --range 2 --maximum 1)
-new_test(max-default check.sh ${CMAKE_CURRENT_LIST_DIR}/generate-changes max-default.json -0.5 0.5 0 1)
+new_test(minmax check.sh $<TARGET_FILE:generatechanges> minmax.json 0.5 0.5 0.5 0.5)
+new_test(minrange check.sh $<TARGET_FILE:generatechanges> minrange.json 0.5 1.0 -0.5 0.5)
+new_test(maxrange check.sh $<TARGET_FILE:generatechanges> maxrange.json 0 0.5 -0.5 0.5)
+new_test(range check.sh $<TARGET_FILE:generatechanges> range.json 0 0.5 -1 0)
+new_test(min check.sh $<TARGET_FILE:generatechanges> min.json 0.5 1.5 0.5 2.5)
+new_test(max check.sh $<TARGET_FILE:generatechanges> max.json -0.5 0.5 -1.5 0.5)
