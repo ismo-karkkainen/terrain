@@ -125,6 +125,9 @@ render_io:
 
 # Building
 
+For unit tests, you need https://github.com/onqtam/doctest to compile them.
+Install into location for which `#include <doctest/doctest.h>` works.
+
 You need edicta to extract the input and output specifications from this file.
 You need specificjson to generate source code from the specifications.
 

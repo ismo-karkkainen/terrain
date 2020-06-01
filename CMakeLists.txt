@@ -77,6 +77,7 @@ function(setup_unittest_program TGTNAME MAIN IO)
 endfunction()
 
 setup_unittest_program(unittest-generate src/generatechanges.cpp generate_io)
+setup_unittest_program(unittest-render src/renderchanges.cpp render_io)
 
 function(add_test_prog PROG)
     add_executable(${PROG} IMPORTED)
