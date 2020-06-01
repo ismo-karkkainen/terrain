@@ -90,6 +90,9 @@ static void check_map(
 static const size_t block_size = 1048576;
 
 int main(int argc, char** argv) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    rnd.seed((getpid() << 20) ^ (ts.tv_nsec << 10) ^ ts.tv_sec);
     int f = 0;
     if (argc > 1)
         f = open(argv[1], O_RDONLY);

@@ -34,15 +34,15 @@ endif()
 
 #### Main programs
 
-set(Programs generatechanges renderchanges)
+set(Programs generatechanges renderchanges pseudocolor)
 
 set(Sources src/BlockQueue.cpp src/InputChannel.cpp src/FileDescriptorInput.cpp)
 
 add_custom_target(parsers COMMENT "Generating types from README.md"
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/README.md
-    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io
+    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io color_io
     COMMAND specificjson --input pspecs
-    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp)
+    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp color_io.cpp color_io.hpp)
 
 function(setup_main_program TGTNAME MAIN IO)
     add_executable(${TGTNAME} ${MAIN} ${Sources} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp)
@@ -56,6 +56,7 @@ endfunction()
 
 setup_main_program(generatechanges src/generatechanges.cpp generate_io)
 setup_main_program(renderchanges src/renderchanges.cpp render_io)
+setup_main_program(pseudocolor src/pseudocolor.cpp color_io)
 
 install(TARGETS ${Programs} RUNTIME DESTINATION bin)
 
@@ -78,6 +79,7 @@ endfunction()
 
 setup_unittest_program(unittest-generate src/generatechanges.cpp generate_io)
 setup_unittest_program(unittest-render src/renderchanges.cpp render_io)
+setup_unittest_program(unittest-color src/pseudocolor.cpp color_io)
 
 function(add_test_prog PROG)
     add_executable(${PROG} IMPORTED)

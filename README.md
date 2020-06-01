@@ -123,6 +123,38 @@ render_io:
 ...
 ```
 
+## pseudocolor
+
+Takes a height field and produces a matching image with height value mapped to
+RGB color value.
+
+```
+---
+color_io:
+  namespace: io
+  types:
+    PseudoColorIn:
+      map:
+        description: Input height field.
+        format: [ ContainerStdVector, StdVector, Float ]
+      waterlevel:
+        description: Relative water level, defaults to 0.5, half under water.
+        format: Float
+        required: false
+    PseudoColorOut:
+      image:
+        description: RGB image.
+        format: [ ContainerStdVector, ContainerStdVector, StdVector, Float ]
+        accessor: image
+  generate:
+    PseudoColorIn:
+      parser: true
+    PseudoColorOut:
+      writer: true
+...
+```
+
+
 # Building
 
 For unit tests, you need https://github.com/onqtam/doctest to compile them.
