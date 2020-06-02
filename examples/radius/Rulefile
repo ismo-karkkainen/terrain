@@ -2,15 +2,15 @@
 - tgt: write
 - init:
   commands:
-  - launch loader out JSON stdout out bytes stderr program files2mapped offset_min.json omin offset_max.json omax radius_min.json rmin radius_max.json rmax
+  - launch loader out JSON stdout out bytes stderr program files2mapped radius_min.json rmin radius_max.json rmax
   - launch generate out JSON stdout out bytes stderr in JSON stdin program generatechanges
   - launch render out JSON stdout out bytes stderr in JSON stdin program renderchanges
   - launch color out JSON stdout out bytes stderr in JSON stdin program pseudocolor
   - launch write out bytes stderr in JSON stdin program writeimage
-  - wait_data omin omax rmin rmax
+  - wait_data rmin rmax
 - generate: init
   commands:
-  - [feed, generate, direct, 1000000, count, input, rmax, radius_max, input, rmin, radius_min, input, omax, offset_max, input, omin, offset_min]
+  - [feed, generate, direct, 100000, count, input, rmax, radius_max, input, rmin, radius_min]
   - close generate
   - wait_data changes
 - render: generate
@@ -27,3 +27,4 @@
   commands:
   - feed write direct radius.tiff filename input image image
   - close write
+  - wait_process 60 write

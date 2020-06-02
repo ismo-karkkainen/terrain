@@ -100,7 +100,7 @@ render_io:
         format: UInt32
       changes:
         description: Array of arrays of x, y, radius, and offset.
-        format: [ ContainerStdVector, StdVector, Float ]
+        format: [ ContainerStdVector, StdVector, Double ]
       left:
         description: Crop area low x-index, included. Defaults to 0.
         format: UInt32

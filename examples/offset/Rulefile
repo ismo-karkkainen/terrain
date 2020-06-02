@@ -1,0 +1,46 @@
+---
+- tgt: write
+- init:
+  commands:
+  - run loader out JSON stdout out bytes stderr program files2mapped offset_min.json omin offset_max.json omax radius.json rad
+  - wait_data omin omax rad
+- generate-init:
+  commands:
+  - launch generate out JSON stdout out bytes stderr in JSON stdin program generatechanges
+- generate:
+  - init
+  - generate-init
+  commands:
+  - [feed, generate, direct, 100000, count, input, rad, radius_max, input, rad, radius_min, input, omax, offset_max, input, omin, offset_min]
+  - close generate
+  - wait_data changes
+- render-init:
+  commands:
+  - launch render out JSON stdout out bytes stderr in JSON stdin program renderchanges
+- render:
+  - render-init
+  - generate
+  commands:
+  - [feed, render, direct, 1000, size, input, changes, changes]
+  - close render
+  - wait_data heightfield
+- convert-init:
+  commands:
+  - launch color out JSON stdout out bytes stderr in JSON stdin program pseudocolor
+- convert:
+  - convert-init
+  - render
+  commands:
+  - feed color input heightfield map
+  - close color
+  - wait_data image
+- write-init:
+  commands:
+  - launch write out bytes stderr in JSON stdin program writeimage
+- write:
+  - write-init
+  - convert
+  commands:
+  - feed write direct radius.tiff filename input image image
+  - close write
+  - wait_process 60 write

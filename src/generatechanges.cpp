@@ -25,46 +25,46 @@
 #include <unistd.h>
 
 
-static std::mt19937 rnd;
+static std::mt19937_64 rnd;
 
-typedef std::function<float(float,float,float)> Mapper;
+typedef std::function<double(double,double,double)> Mapper;
 
-static float value(float x, float y, io::GenerateIn::radius_minType& Map) {
+static double value(double x, double y, io::GenerateIn::radius_minType& Map) {
     y *= Map.size() - 2;
     size_t yidx = trunc(y);
     y -= yidx;
-    float xx = x * (Map[yidx].size() - 2);
+    double xx = x * (Map[yidx].size() - 2);
     size_t xidx = trunc(xx);
     xx -= xidx;
-    float v = (1.0f - y) * ((1.0f - xx) * Map[yidx][xidx] + xx * Map[yidx][xidx + 1]);
+    double v = (1.0 - y) * ((1.0 - xx) * Map[yidx][xidx] + xx * Map[yidx][xidx + 1]);
     ++yidx;
     xx = x * (Map[yidx].size() - 2);
     xidx = trunc(xx);
     xx -= xidx;
-    return v + y * ((1.0f - xx) * Map[yidx][xidx] + xx * Map[yidx][xidx + 1]);
+    return v + y * ((1.0 - xx) * Map[yidx][xidx] + xx * Map[yidx][xidx + 1]);
 }
 
 static void generate_change(
-    std::vector<float>& Change, Mapper Radius, Mapper Offset)
+    std::vector<double>& Change, Mapper Radius, Mapper Offset)
 {
     Change[2] = Radius(Change[0], Change[1], Change[2]);
     Change[3] = Offset(Change[0], Change[1], Change[3]);
 }
 
-static float minmax(float x, float y, float r,
+static double minmax(double x, double y, double r,
     io::GenerateIn::radius_minType& a, io::GenerateIn::radius_minType& b)
 {
-    float v = value(x, y, a);
+    double v = value(x, y, a);
     return v + (value(x, y, b) - v) * r;
 }
 
-static float minrange(float x, float y, float r,
+static double minrange(double x, double y, double r,
     io::GenerateIn::radius_minType& a, io::GenerateIn::radius_minType& b)
 {
     return value(x, y, a) + value(x, y, b) * r;
 }
 
-static float maxrange(float x, float y, float r,
+static double maxrange(double x, double y, double r,
     io::GenerateIn::radius_minType& a, io::GenerateIn::radius_minType& b)
 {
     return value(x, y, a) - value(x, y, b) * r;
@@ -92,7 +92,9 @@ static const size_t block_size = 1048576;
 int main(int argc, char** argv) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
-    rnd.seed((getpid() << 20) ^ (ts.tv_nsec << 10) ^ ts.tv_sec);
+    rnd.seed((static_cast<std::mt19937_64::result_type>(getpid()) << 17) ^
+        (static_cast<std::mt19937_64::result_type>(ts.tv_nsec) << 34) ^
+        static_cast<std::mt19937_64::result_type>(ts.tv_sec));
     int f = 0;
     if (argc > 1)
         f = open(argv[1], O_RDONLY);
@@ -101,8 +103,8 @@ int main(int argc, char** argv) {
     io::ParserPool pp;
     io::GenerateIn_Parser parser;
     std::vector<char> output_buffer;
-    const float s = 1.0f / static_cast<float>(std::mt19937::max());
-    std::vector<float> change(4, 0.0f);
+    const double s = 1.0 / static_cast<double>(std::mt19937_64::max());
+    std::vector<double> change(4, 0.0);
     const char* end = nullptr;
     while (!input.Ended()) {
         if (end == nullptr) {
@@ -154,34 +156,34 @@ int main(int argc, char** argv) {
         }
         if (val.seedGiven())
             rnd.seed(val.seed());
-        Mapper radius = [&val](float x, float y, float r) {
+        Mapper radius = [&val](double x, double y, double r) {
             return minrange(x, y, r, val.radius_min(), val.radius_range());
         };
         if (val.radius_minGiven() && val.radius_maxGiven()) {
-            radius = [&val](float x, float y, float r) {
+            radius = [&val](double x, double y, double r) {
                 return minmax(x, y, r, val.radius_min(), val.radius_max());
             };
         } else if (val.radius_maxGiven()) {
-            radius = [&val](float x, float y, float r) {
+            radius = [&val](double x, double y, double r) {
                 return maxrange(x, y, r, val.radius_max(), val.radius_range());
             };
         }
-        Mapper offset = [&val](float x, float y, float r) {
+        Mapper offset = [&val](double x, double y, double r) {
             return minrange(x, y, r, val.offset_min(), val.offset_range());
         };
         if (val.offset_minGiven() && val.offset_maxGiven()) {
-            offset = [&val](float x, float y, float r) {
+            offset = [&val](double x, double y, double r) {
                 return minmax(x, y, r, val.offset_min(), val.offset_max());
             };
         } else if (val.offset_maxGiven()) {
-            offset = [&val](float x, float y, float r) {
+            offset = [&val](double x, double y, double r) {
                 return maxrange(x, y, r, val.offset_max(), val.offset_range());
             };
         }
         std::cout << "{\"changes\":[";
         for (std::uint32_t k = 0; k < val.count(); ++k) {
             for (auto& v : change)
-                v = s * static_cast<float>(rnd());
+                v = s * static_cast<double>(rnd());
             generate_change(change, radius, offset);
             io::Write(std::cout, change, output_buffer);
             if (k + 1 != val.count())
@@ -204,7 +206,7 @@ TEST_CASE("check_map") {
         for (auto& row : map) {
             REQUIRE(row.size() == 2);
             for (auto& val : row)
-                REQUIRE(val == 0.5f);
+                REQUIRE(val == 0.5);
         }
     }
     SUBCASE("Given expanded") {
@@ -215,7 +217,7 @@ TEST_CASE("check_map") {
         for (auto& row : map) {
             REQUIRE(row.size() == 2);
             for (auto& val : row)
-                REQUIRE(val == 0.5f);
+                REQUIRE(val == 0.5);
         }
     }
     SUBCASE("Empty") {
@@ -236,32 +238,32 @@ TEST_CASE("value") {
     map.back().back() = 4.0f;
     check_map(true, map, 0.0f);
     SUBCASE("Corners") {
-        REQUIRE(fabs(value(0.0f, 0.0f, map) - 1.0f) < 1e-7);
-        REQUIRE(fabs(value(1.0f, 0.0f, map) - 2.0f) < 1e-7);
-        REQUIRE(fabs(value(0.0f, 1.0f, map) - 3.0f) < 1e-7);
-        REQUIRE(fabs(value(1.0f, 1.0f, map) - 4.0f) < 1e-7);
+        REQUIRE(abs(value(0.0, 0.0, map) - 1.0) < 1e-7);
+        REQUIRE(abs(value(1.0, 0.0, map) - 2.0) < 1e-7);
+        REQUIRE(abs(value(0.0, 1.0, map) - 3.0) < 1e-7);
+        REQUIRE(abs(value(1.0, 1.0, map) - 4.0) < 1e-7);
     }
     SUBCASE("Edge centers") {
-        REQUIRE(fabs(value(0.5f, 0.0f, map) - 1.5f) < 1e-7);
-        REQUIRE(fabs(value(1.0f, 0.5f, map) - 3.0f) < 1e-7);
-        REQUIRE(fabs(value(0.5f, 1.0f, map) - 3.5f) < 1e-7);
-        REQUIRE(fabs(value(0.0f, 0.5f, map) - 2.0f) < 1e-7);
+        REQUIRE(abs(value(0.5, 0.0, map) - 1.5) < 1e-7);
+        REQUIRE(abs(value(1.0, 0.5, map) - 3.0) < 1e-7);
+        REQUIRE(abs(value(0.5, 1.0, map) - 3.5) < 1e-7);
+        REQUIRE(abs(value(0.0, 0.5, map) - 2.0) < 1e-7);
     }
     SUBCASE("Center") {
-        REQUIRE(fabs(value(0.5f, 0.5f, map) - 2.5f) < 1e-7);
+        REQUIRE(abs(value(0.5, 0.5, map) - 2.5) < 1e-7);
     }
 }
 
 TEST_CASE("generate_change") {
-    std::vector<float> change(4, 1.0f);
+    std::vector<double> change(4, 1.0);
     SUBCASE("Touch correct") {
         generate_change(change,
-            [](float x, float y, float r) { return 2.0f; },
-            [](float x, float y, float r) { return 3.0f; });
-        REQUIRE(change[0] == 1.0f);
-        REQUIRE(change[1] == 1.0f);
-        REQUIRE(change[2] == 2.0f);
-        REQUIRE(change[3] == 3.0f);
+            [](double x, double y, double r) { return 2.0; },
+            [](double x, double y, double r) { return 3.0; });
+        REQUIRE(change[0] == 1.0);
+        REQUIRE(change[1] == 1.0);
+        REQUIRE(change[2] == 2.0);
+        REQUIRE(change[3] == 3.0);
     }
 }
 
@@ -273,9 +275,9 @@ TEST_CASE("minmax") {
     map.back().back() = 4.0f;
     check_map(true, map, 0.0f);
     SUBCASE("min == max") {
-        REQUIRE(minmax(0.0f, 0.0f, 0.5f, map, map) == 1.0f);
-        REQUIRE(minmax(0.0f, 0.0f, 0.0f, map, map) == 1.0f);
-        REQUIRE(minmax(0.0f, 0.0f, 1.0f, map, map) == 1.0f);
+        REQUIRE(minmax(0.0, 0.0, 0.5, map, map) == 1.0);
+        REQUIRE(minmax(0.0, 0.0, 0.0, map, map) == 1.0);
+        REQUIRE(minmax(0.0, 0.0, 1.0, map, map) == 1.0);
     }
     io::GenerateIn::radius_minType map2;
     map2.push_back(std::vector<float>(2, 2.0f));
@@ -284,9 +286,9 @@ TEST_CASE("minmax") {
     map2.back().back() = 5.0f;
     check_map(true, map2, 0.0f);
     SUBCASE("min + 1 == max") {
-        REQUIRE(minmax(0.0f, 0.0f, 0.5f, map, map2) == 1.5f);
-        REQUIRE(minmax(0.0f, 0.0f, 0.0f, map, map2) == 1.0f);
-        REQUIRE(minmax(0.0f, 0.0f, 1.0f, map, map2) == 2.0f);
+        REQUIRE(minmax(0.0, 0.0, 0.5, map, map2) == 1.5);
+        REQUIRE(minmax(0.0, 0.0, 0.0, map, map2) == 1.0);
+        REQUIRE(minmax(0.0, 0.0, 1.0, map, map2) == 2.0);
     }
 }
 
@@ -295,9 +297,9 @@ TEST_CASE("minrange") {
     map.push_back(std::vector<float>(1, 1.0f));
     check_map(true, map, 0.0f);
     SUBCASE("min == range") {
-        REQUIRE(minrange(0.0f, 0.0f, 0.5f, map, map) == 1.5f);
-        REQUIRE(minrange(0.0f, 0.0f, 0.0f, map, map) == 1.0f);
-        REQUIRE(minrange(0.0f, 0.0f, 1.0f, map, map) == 2.0f);
+        REQUIRE(minrange(0.0, 0.0, 0.5, map, map) == 1.5);
+        REQUIRE(minrange(0.0, 0.0, 0.0, map, map) == 1.0);
+        REQUIRE(minrange(0.0, 0.0, 1.0, map, map) == 2.0);
     }
 }
 
@@ -306,9 +308,9 @@ TEST_CASE("maxrange") {
     map.push_back(std::vector<float>(1, 1.0f));
     check_map(true, map, 0.0f);
     SUBCASE("max == range") {
-        REQUIRE(maxrange(0.0f, 0.0f, 0.5f, map, map) == 0.5f * map[0][0]);
-        REQUIRE(maxrange(0.0f, 0.0f, 0.0f, map, map) == map[0][0]);
-        REQUIRE(maxrange(0.0f, 0.0f, 1.0f, map, map) == 0.0f);
+        REQUIRE(maxrange(0.0, 0.0, 0.5, map, map) == 0.5 * map[0][0]);
+        REQUIRE(maxrange(0.0, 0.0, 0.0, map, map) == map[0][0]);
+        REQUIRE(maxrange(0.0, 0.0, 1.0, map, map) == 0.0);
     }
 }
 
