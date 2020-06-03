@@ -41,6 +41,6 @@
   - write-init
   - convert
   commands:
-  - feed write direct radius.tiff filename input image image
+  - feed write direct offset.tiff filename input image image
   - close write
   - wait_process 60 write

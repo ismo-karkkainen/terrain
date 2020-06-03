@@ -21,6 +21,7 @@
 #include <cinttypes>
 #include <functional>
 #include <random>
+#include <tuple>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -86,6 +87,63 @@ static void check_map(
     Value.push_back(Value.front());
 }
 
+static void check_histogram(
+    bool Given, io::GenerateIn::offset_histogramType& Value)
+{
+    if (Given) {
+        if (Value.empty())
+            throw "Input histogram is empty.";
+        bool nonzero = false;
+        for (auto& v : Value) {
+            if (v < 0.0f)
+                throw "Input histogram has negative value.";
+            if (0.0f < v)
+                nonzero = true;
+        }
+        if (!nonzero)
+            throw "Input histogram has only zeroes.";
+    } else
+        Value.push_back(1.0f);
+}
+
+static void normalize_histogram(io::GenerateIn::offset_histogramType& Hist) {
+    double sum = 0.0;
+    for (size_t k = 0; k < Hist.size(); ++k)
+        sum += Hist[k];
+    for (size_t k = 0; k < Hist.size(); ++k)
+        Hist[k] /= sum;
+}
+
+// Old low, high, and range, new low and range.
+typedef std::vector<std::tuple<double,double,double,double,double>> RangeMap;
+
+static RangeMap histogram2rangemap(
+    const io::GenerateIn::offset_histogramType& Hist)
+{
+    RangeMap map;
+    double previous = 0.0;
+    for (size_t k = 0; k < Hist.size(); ++k) {
+        if (Hist[k] == 0.0) // Skip empty ranges.
+            continue;
+        map.push_back(std::tuple(previous, previous + Hist[k], double(Hist[k]),
+            double(k) / double(Hist.size()), 1.0 / double(Hist.size())));
+        previous += Hist[k];
+    }
+    // Ensure inequality will hold in redistribute.
+    std::get<1>(map.back()) = 1.0 + std::numeric_limits<double>::epsilon();
+    return map;
+}
+
+static double redistribute(double Value, const RangeMap Map) {
+    // A binary search would be more efficient once histogram is long enough.
+    for (auto& interval : Map) {
+        if (std::get<0>(interval) <= Value && Value < std::get<1>(interval))
+            return std::get<3>(interval) + std::get<4>(interval) *
+                ((Value - std::get<0>(interval)) / std::get<2>(interval));
+    }
+    return std::get<3>(Map.back()) + std::get<4>(Map.back());
+}
+
 #if !defined(UNITTEST)
 static const size_t block_size = 1048576;
 
@@ -149,6 +207,8 @@ int main(int argc, char** argv) {
             check_map(val.offset_minGiven(), val.offset_min(), -1.0f);
             check_map(val.offset_maxGiven(), val.offset_max(), 1.0f);
             check_map(val.offset_rangeGiven(), val.offset_range(), 2.0f);
+            check_histogram(val.offset_histogramGiven(), val.offset_histogram());
+            check_histogram(val.radius_histogramGiven(), val.radius_histogram());
         }
         catch (const char* msg) {
             std::cerr << msg << std::endl;
@@ -180,10 +240,16 @@ int main(int argc, char** argv) {
                 return maxrange(x, y, r, val.offset_max(), val.offset_range());
             };
         }
+        normalize_histogram(val.offset_histogram());
+        RangeMap offset_map = histogram2rangemap(val.offset_histogram());
+        normalize_histogram(val.radius_histogram());
+        RangeMap radius_map = histogram2rangemap(val.radius_histogram());
         std::cout << "{\"changes\":[";
         for (std::uint32_t k = 0; k < val.count(); ++k) {
             for (auto& v : change)
                 v = s * static_cast<double>(rnd());
+            change[2] = redistribute(change[2], radius_map);
+            change[3] = redistribute(change[3], offset_map);
             generate_change(change, radius, offset);
             io::Write(std::cout, change, output_buffer);
             if (k + 1 != val.count())
@@ -311,6 +377,128 @@ TEST_CASE("maxrange") {
         REQUIRE(maxrange(0.0, 0.0, 0.5, map, map) == 0.5 * map[0][0]);
         REQUIRE(maxrange(0.0, 0.0, 0.0, map, map) == map[0][0]);
         REQUIRE(maxrange(0.0, 0.0, 1.0, map, map) == 0.0);
+    }
+}
+
+TEST_CASE("check_histogram") {
+    io::GenerateIn::offset_histogramType hist;
+    SUBCASE("Empty given") {
+        REQUIRE_THROWS_AS(check_histogram(true, hist), const char*);
+    }
+    SUBCASE("Not given") {
+        check_histogram(false, hist);
+        REQUIRE(hist.size() == 1);
+        REQUIRE(hist.front() == 1.0f);
+    }
+    SUBCASE("Zero only") {
+        hist.resize(0);
+        hist.push_back(0.0f);
+        REQUIRE_THROWS_AS(check_histogram(true, hist), const char*);
+    }
+    SUBCASE("Valid given") {
+        hist.resize(0);
+        hist.push_back(1.0f);
+        hist.push_back(0.5f);
+        check_histogram(true, hist);
+        REQUIRE(hist.size() == 2);
+        REQUIRE(hist.front() == 1.0f);
+        REQUIRE(hist.back() == 0.5f);
+    }
+    SUBCASE("Negative value") {
+        hist.resize(0);
+        hist.push_back(0.0f);
+        hist.push_back(0.5f);
+        hist.push_back(-1.0f);
+        REQUIRE_THROWS_AS(check_histogram(true, hist), const char*);
+    }
+}
+
+TEST_CASE("normalize_histogram") {
+    SUBCASE("Simple") {
+        io::GenerateIn::offset_histogramType hist;
+        hist.push_back(2.0f);
+        normalize_histogram(hist);
+        REQUIRE(hist.front() == 1.0f);
+    }
+    SUBCASE("Uniform") {
+        io::GenerateIn::offset_histogramType hist =
+            std::vector<float> { 2.0f, 2.0f, 2.0f, 2.0f };
+        normalize_histogram(hist);
+        for (auto& v : hist)
+            REQUIRE(v == 0.25f);
+    }
+    SUBCASE("Peaks") {
+        io::GenerateIn::offset_histogramType hist =
+            std::vector<float> { 2.0f, 0.0f, 2.0f };
+        normalize_histogram(hist);
+        REQUIRE(hist.front() == 0.5f);
+        REQUIRE(hist[1] == 0.0f);
+        REQUIRE(hist.back() == 0.5f);
+    }
+}
+
+TEST_CASE("histogram2rangemap") {
+    SUBCASE("Uniform") {
+        io::GenerateIn::offset_histogramType hist;
+        hist.push_back(1.0f);
+        normalize_histogram(hist);
+        RangeMap map = histogram2rangemap(hist);
+        REQUIRE(map.size() == 1);
+        REQUIRE(std::get<0>(map.front()) == 0.0);
+        REQUIRE(std::get<1>(map.front()) >= 1.0);
+        REQUIRE(std::get<2>(map.front()) == 1.0);
+        REQUIRE(std::get<3>(map.front()) == 0.0);
+        REQUIRE(std::get<4>(map.front()) == 1.0);
+    }
+    SUBCASE("Peaks") {
+        io::GenerateIn::offset_histogramType hist =
+            std::vector<float> { 1.0f, 0.0f, 0.0f, 1.0f };
+        normalize_histogram(hist);
+        RangeMap map = histogram2rangemap(hist);
+        REQUIRE(map.size() == 2);
+        REQUIRE(std::get<0>(map.front()) == 0.0);
+        REQUIRE(std::get<1>(map.front()) == 0.5);
+        REQUIRE(std::get<2>(map.front()) == 0.5);
+        REQUIRE(std::get<3>(map.front()) == 0.0);
+        REQUIRE(std::get<4>(map.front()) == 0.25);
+        REQUIRE(std::get<0>(map.back()) == 0.5);
+        REQUIRE(std::get<1>(map.back()) >= 1.0);
+        REQUIRE(std::get<2>(map.back()) == 0.5);
+        REQUIRE(std::get<3>(map.back()) == 0.75);
+        REQUIRE(std::get<4>(map.back()) == 0.25);
+    }
+}
+
+TEST_CASE("redistribute") {
+    SUBCASE("Uniform") {
+        io::GenerateIn::offset_histogramType hist = std::vector<float> { 1.0f };
+        normalize_histogram(hist);
+        RangeMap map = histogram2rangemap(hist);
+        REQUIRE(redistribute(0.0, map) == 0.0);
+        REQUIRE(redistribute(0.25, map) == 0.25);
+        REQUIRE(redistribute(0.5, map) == 0.5);
+        REQUIRE(redistribute(0.75, map) == 0.75);
+        REQUIRE(redistribute(1.0, map) == 1.0);
+    }
+    SUBCASE("Peaks") {
+        io::GenerateIn::offset_histogramType hist =
+            std::vector<float> { 1.0f, 0.0f, 0.0f, 1.0f };
+        normalize_histogram(hist);
+        RangeMap map = histogram2rangemap(hist);
+        REQUIRE(redistribute(0.0, map) == 0.0);
+        REQUIRE(redistribute(0.499, map) >= 0.248);
+        REQUIRE(redistribute(0.499, map) <= 0.25);
+        REQUIRE(redistribute(0.5, map) == 0.75);
+        REQUIRE(redistribute(1.0, map) == 1.0);
+    }
+    SUBCASE("Upper half") {
+        io::GenerateIn::offset_histogramType hist =
+            std::vector<float> { 0.0f, 1.0f };
+        normalize_histogram(hist);
+        RangeMap map = histogram2rangemap(hist);
+        REQUIRE(redistribute(0.0, map) == 0.5);
+        REQUIRE(redistribute(0.5, map) == 0.75);
+        REQUIRE(redistribute(1.0, map) == 1.0);
     }
 }
 

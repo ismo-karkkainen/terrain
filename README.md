@@ -60,6 +60,12 @@ generate_io:
           have been given. Default is [[1,1],[1,1]].
         format: [ ContainerStdVector, StdVector, Float ]
         required: false
+      radius_histogram:
+        description: |
+          Distribution of radius values within the radius range as histogram.
+          See description of offset_histogram.
+        format: [ StdVector, Float ]
+        required: false
       offset_min:
         description: Map of minimum offset values. Default is [[-1,-1],[-1,-1]].
         format: [ ContainerStdVector, StdVector, Float ]
@@ -73,6 +79,16 @@ generate_io:
           Map of offset value ranges. Ignored if both offset_min and offset_max
           have been given. Default is [[2,2],[2,2]].
         format: [ ContainerStdVector, StdVector, Float ]
+        required: false
+      offset_histogram:
+        description: |
+          Distribution of offset values within the offset range as histogram.
+          Values are divided by the sum to get relative amount of values that
+          end up in each bin. Defaults to uniform distribution: [1]. To only
+          get values near offset minimum or maximum, use [1,0,0,...,0,1].
+          To exclude values near zero, use value like [1,1,1,0,1,1,1]. Using
+          zero at the end effective shrinks range.
+        format: [ StdVector, Float ]
         required: false
       seed:
         description: Seed for random number generator.
@@ -154,6 +170,25 @@ color_io:
 ...
 ```
 
+# Examples
+
+In directory examples, there are two subdirectories. You need to have installed
+
+    https://github.com/ismo-karkkainen/datalackey
+    https://github.com/ismo-karkkainen/datalackeyshell
+    https://github.com/ismo-karkkainen/imageio
+
+In both subdirectories, the example can be run with:
+
+    datalackey-make tgt -m
+
+If you want to see how the execution proceeds, add "--follow 2" option to the
+command. The "-m" flag instructs datalackey to use main memory for storage.
+
+Both files generate 100000 changes ad render a 1000x1000 height field, using
+pseudocolor to prepare for output to a TIFF image. One varies the radius so
+that vertical middle of the map has largest possible radius, and the other
+varies offset magnitude while keeping the radius constant.
 
 # Building
 
