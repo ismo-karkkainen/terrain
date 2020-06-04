@@ -1,0 +1,53 @@
+#!/usr/bin/env ruby
+
+require 'json'
+
+a = JSON.parse(File.new(ARGV[0], 'r').read)
+b = JSON.parse(File.new(ARGV[1], 'r').read)
+unless a.is_a?(Array) and b.is_a?(Array)
+  STDERR.puts "First or second file is not a array."
+  exit 2
+end
+unless a.size() == b.size()
+  STDERR.puts "Sizes differ, #{a.size} != #{b.size}"
+  exit 2
+end
+
+maxabs = nil
+a.each_index do |y|
+  unless a[y].is_a?(Array) and b[y].is_a?(Array) and a[y].size == b[y].size
+    STDERR.puts "Sub-array not an array or size mismatch."
+    exit 2
+  end
+  a[y].each_index do |x|
+    if maxabs.nil? or maxabs < a[y][x].abs
+      maxabs = a[y][x].abs
+    end
+  end
+end
+
+count = 0
+rows = []
+diffs = []
+a.each_index do |y|
+  a[y].each_index do |x|
+    next if a[y][x] == b[y][x]
+    count += 1
+    rows.push[y]
+    diffs.push (a[y][x] - b[y][x]).abs
+  end
+end
+
+puts "Difference count: #{count}, #{count * 100.0 / (a.size * a[0].size)} %"
+exit(0) if diffs.empty?
+diffs.sort!
+puts "Range: [#{diffs.first}, #{diffs.last}]"
+exit(0) if diffs.size < 20
+puts "Relative: [#{diffs.first / maxabs}, #{diffs.last / maxabs}]"
+low = 0
+(0...20).each do |k|
+  high = (k == 19) ? diffs.last + 1 : (k + 1) * diffs.last / 20
+  range = diffs.select { |v| low <= v and v < high }
+  puts "[#{low / maxabs}, #{high / maxabs}[: #{range.size}"
+  low = high
+end

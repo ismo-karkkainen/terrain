@@ -56,6 +56,8 @@ endfunction()
 
 setup_main_program(generatechanges src/generatechanges.cpp generate_io)
 setup_main_program(renderchanges src/renderchanges.cpp render_io)
+setup_main_program(slowrenderchanges src/slowrenderchanges.cpp render_io)
+setup_main_program(accuraterenderchanges src/accuraterenderchanges.cpp render_io)
 setup_main_program(pseudocolor src/pseudocolor.cpp color_io)
 
 install(TARGETS ${Programs} RUNTIME DESTINATION bin)

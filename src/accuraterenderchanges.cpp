@@ -31,56 +31,7 @@ static void scale_changes(io::RenderChangesIn::changesType& Changes,
         change[0] *= Size;
         change[1] *= Size;
         change[2] *= MaxRadius;
-    }
-}
-
-static void row_deltas(const io::RenderChangesIn::changesType& Changes,
-    std::vector<double>& Deltas, std::uint32_t Y, const std::uint32_t Size,
-    const std::uint32_t Left, const std::uint32_t Right)
-{
-    for (auto& change : Changes) {
-        const double cy = change[1];
-        const double radius = change[2];
-        double diff;
-        if (Y < cy) {
-            if (cy - Y < radius)
-                diff = cy - Y;
-            else if (Y + Size - cy < radius)
-                diff = Y + Size - cy;
-            else
-                continue;
-        } else {
-            if (Y - cy < radius)
-                diff = Y - cy;
-            else if (cy + Size - Y < radius)
-                diff = cy + Size - Y;
-            else
-                continue;
-        }
-        const double line_span = sqrt(radius * radius - diff * diff);
-        double from = round(change[0] - line_span);
-        double to = round(change[0] + line_span);
-        if (0 < from && Right < from) // On the right side of range.
-            continue;
-        if (to < Size && to < Left) // On the left side of range.
-            continue;
-        // Wraps around?
-        if (from < 0)
-            from += Size;
-        else if (Size <= to)
-            to -= Size;
-        if (to < from) {
-            if (to < Left && Right < from)
-                continue;
-            Deltas.front() += change[3];
-            Deltas[to + 1] -= change[3];
-            Deltas[from] += change[3];
-        } else if (to == from) {
-            Deltas.front() += change[3];
-        } else {
-            Deltas[from] += change[3];
-            Deltas[to] -= change[3];
-        }
+        change[2] *= change[2];
     }
 }
 
@@ -95,25 +46,39 @@ static void render_changes(io::RenderChangesIn& Val) {
         return;
     scale_changes(Val.changes(), size, 0.5 * Val.size());
     std::vector<char> buffer;
-    std::vector<double> deltas(size + 1, 0.0);
     std::vector<float> row;
     if (left < right)
         row.resize(right - left);
+    std::vector<double> pos, neg;
     for (std::uint32_t y = low; y < high; ++y) {
-        if (left < right) {
-            row_deltas(Val.changes(), deltas, y, size, left, right);
-            double height = 0.0;
-            for (std::uint32_t n = 0; n < left; ++n) {
-                height += deltas[n];
-                deltas[n] = 0.0;
+        for (std::uint32_t x = left; x < right; ++x) {
+            pos.resize(0);
+            neg.resize(0);
+            for (auto& change : Val.changes()) {
+                const double dx = std::min(abs(x - change[0]),
+                    std::min(abs(x + size - change[0]),
+                        abs(x - (change[0] + size))));
+                if (change[2] < dx * dx)
+                    continue;
+                const double dy = std::min(abs(y - change[1]),
+                    std::min(abs(y + size - change[1]),
+                        abs(y - (change[1] + size))));
+                if (change[2] < dx * dx + dy * dy)
+                    continue;
+                if (change[3] < 0)
+                    neg.push_back(change[3]);
+                else
+                    pos.push_back(change[3]);
             }
-            for (std::uint32_t n = left; n < right; ++n) {
-                height += deltas[n];
-                deltas[n] = 0.0;
-                row[n - left] = height;
-            }
-            for (std::uint32_t n = right; n < deltas.size(); ++n)
-                deltas[n] = 0.0;
+            std::sort(pos.begin(), pos.end());
+            std::sort(neg.rbegin(), neg.rend());
+            double sn = 0.0;
+            for (auto v : neg)
+                sn += v;
+            double sp = 0.0;
+            for (auto v : pos)
+                sp += v;
+            row[x - left] = float(sp + sn);
         }
         io::Write(std::cout, row, buffer);
         if (y + 1 != high)
