@@ -172,23 +172,17 @@ color_io:
 
 # Examples
 
-In directory examples, there are two subdirectories. You need to have installed
+Under directory examples, there are subdirectories. You need to have installed
 
     https://github.com/ismo-karkkainen/datalackey
     https://github.com/ismo-karkkainen/datalackeyshell
     https://github.com/ismo-karkkainen/imageio
 
-In both subdirectories, the example can be run with:
+In the subdirectories, the example can be run by running the run.sh script.
 
-    datalackey-make tgt -m
-
-If you want to see how the execution proceeds, add "--follow 2" option to the
-command. The "-m" flag instructs datalackey to use main memory for storage.
-
-Both files generate 100000 changes ad render a 1000x1000 height field, using
-pseudocolor to prepare for output to a TIFF image. One varies the radius so
-that vertical middle of the map has largest possible radius, and the other
-varies offset magnitude while keeping the radius constant.
+If you want to see how the execution proceeds, arguments to the script are
+passed to datalackey-make, so for example "--follow 3" will show you the rule
+names and commands that are executed.
 
 # Building
 
