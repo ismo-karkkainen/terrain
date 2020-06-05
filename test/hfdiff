@@ -29,13 +29,21 @@ end
 count = 0
 rows = []
 diffs = []
+diff = []
 a.each_index do |y|
+  diff.push([]) if ARGV.size == 3
   a[y].each_index do |x|
-    next if a[y][x] == b[y][x]
+    d = (a[y][x] - b[y][x]).abs
+    diff.last.push(d) if ARGV.size == 3
+    next if d == 0
     count += 1
     rows.push[y]
-    diffs.push (a[y][x] - b[y][x]).abs
+    diffs.push d
   end
+end
+
+if ARGV.size == 3
+  File.new(ARGV.last, 'w').puts JSON.generate(diff)
 end
 
 puts "Difference count: #{count}, #{count * 100.0 / (a.size * a[0].size)} %"

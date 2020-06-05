@@ -34,7 +34,7 @@ endif()
 
 #### Main programs
 
-set(Programs generatechanges renderchanges pseudocolor)
+set(Programs generatechanges renderchanges quickrenderchanges pseudocolor)
 
 set(Sources src/BlockQueue.cpp src/InputChannel.cpp src/FileDescriptorInput.cpp)
 
@@ -56,6 +56,7 @@ endfunction()
 
 setup_main_program(generatechanges src/generatechanges.cpp generate_io)
 setup_main_program(renderchanges src/renderchanges.cpp render_io)
+setup_main_program(quickrenderchanges src/quickrenderchanges.cpp render_io)
 setup_main_program(referencerenderchanges src/referencerenderchanges.cpp render_io)
 setup_main_program(pseudocolor src/pseudocolor.cpp color_io)
 
@@ -80,6 +81,7 @@ endfunction()
 
 setup_unittest_program(unittest-generate src/generatechanges.cpp generate_io)
 setup_unittest_program(unittest-render src/renderchanges.cpp render_io)
+setup_unittest_program(unittest-quickrender src/quickrenderchanges.cpp render_io)
 setup_unittest_program(unittest-color src/pseudocolor.cpp color_io)
 
 function(add_test_prog PROG)

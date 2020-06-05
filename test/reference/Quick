@@ -1,0 +1,47 @@
+---
+- tgt: write
+- init:
+  commands:
+  - run loader out JSON stdout out bytes stderr program files2mapped radius.json rad seed.json seed
+  - wait_data rad seed
+- generate-init:
+  commands:
+  - launch generate out JSON stdout out bytes stderr in JSON stdin program generatechanges
+- generate:
+  - init
+  - generate-init
+  commands:
+  - [feed, generate, input, seed, seed, direct, 100000, count, input, rad, radius_min, input, rad, radius_max]
+  - close generate
+  - wait_data changes
+- render-init:
+  commands:
+  - launch render out JSON stdout out bytes stderr in JSON stdin program quickrenderchanges
+- render:
+  - render-init
+  - generate
+  commands:
+  - [feed, render, direct, 900, size, input, changes, changes]
+  - close render
+  - wait_data heightfield
+  - run i2m out bytes stderr in JSON stdin input heightfield hf program input2mapped hf quick.json
+- convert-init:
+  commands:
+  - launch color out JSON stdout out bytes stderr in JSON stdin program pseudocolor
+- convert:
+  - convert-init
+  - render
+  commands:
+  - feed color input heightfield map
+  - close color
+  - wait_data image
+- write-init:
+  commands:
+  - launch write out bytes stderr in JSON stdin program writeimage
+- write:
+  - write-init
+  - convert
+  commands:
+  - [feed, write, direct, quick.tiff, filename, input, image, image, direct, 16, depth]
+  - close write
+  - wait_process 60 write
