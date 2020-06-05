@@ -24,13 +24,58 @@
 #include <unistd.h>
 
 
-static void scale_changes(io::RenderChangesIn::changesType& Changes,
-    const std::uint32_t Size, const double MaxRadius)
+static double delta_range(const double V, const double Low, const double High) {
+    if (V < Low)
+        return Low - V;
+    if (High < V)
+        return V - High;
+    return 0.0;
+}
+
+// Return value indicates if bounding box overlapped, i.e. close enough for
+// the placement in +/- Size to be well outside.
+static bool check_overlap(io::RenderChangesIn::changesType& Scaled,
+    const double X, const double Y, const double R, const double D,
+    const double Left, const double Right, const double Low, const double High)
 {
+    if (X + R < Left)
+        return false;
+    if (Right < X - R)
+        return false;
+    if (Y + R < Low)
+        return false;
+    if (High < Y - R)
+        return false;
+    // Target rectangle and circle's bounding box intersect.
+    // Check if circle intersects with target rectangle.
+    const double dx = delta_range(X, Left, Right);
+    const double dy = delta_range(Y, Low, High);
+    if (R * R < dx * dx + dy * dy)
+        return true;
+    Scaled.push_back(std::vector<double> { X, Y, R, D });
+    return true;
+}
+
+static void scale_changes(io::RenderChangesIn::changesType& Scaled,
+    const io::RenderChangesIn::changesType& Changes, const double Size,
+    const double MaxRadius, const double Left, const double Right,
+    const double Low, const double High)
+{
+    Scaled.resize(0);
     for (auto& change : Changes) {
-        change[0] *= Size;
-        change[1] *= Size;
-        change[2] *= MaxRadius;
+        const double x = change[0] * Size;
+        const double y = change[1] * Size;
+        const double r = change[2] * MaxRadius;
+        const double d = change[3];
+        check_overlap(Scaled, x, y, r, d, Left, Right, Low, High);
+        if (!check_overlap(Scaled, x - Size, y, r, d, Left, Right, Low, High))
+            check_overlap(Scaled, x + Size, y, r, d, Left, Right, Low, High);
+        if (!check_overlap(Scaled, x, y - Size, r, d, Left, Right, Low, High))
+            check_overlap(Scaled, x, y + Size, r, d, Left, Right, Low, High);
+        if (!check_overlap(Scaled, x - Size, y - Size, r, d, Left, Right, Low, High))
+            check_overlap(Scaled, x + Size, y + Size, r, d, Left, Right, Low, High);
+        if (!check_overlap(Scaled, x - Size, y + Size, r, d, Left, Right, Low, High))
+            check_overlap(Scaled, x + Size, y - Size, r, d, Left, Right, Low, High);
     }
 }
 
@@ -40,18 +85,19 @@ static void pick_changes(std::vector<std::vector<double>>& Spans,
 {
     Spans.resize(0);
     for (auto& change : Changes) {
-        const double dy = std::min(abs(Y - change[1]),
-            std::min(abs(Y + Size - change[1]),
-                abs(Y - (change[1] + Size))));
-        if (change[2] < dy)
+        if (change[1] + change[2] < Y)
             continue;
-        Spans.push_back(change);
-        Spans.back()[1] = Spans.back()[2] * Spans.back()[2] - dy * dy;
-        // Could continue and crete one or two (wrap) spans and clip
-        // against the [left, right[ range. Simplifies test further.
-        // Uses more memory.
+        if (Y < change[1] - change[2])
+            continue;
+        const double dy = Y - change[1];
+        Spans.push_back(std::vector<double> {
+            change[0], change[2] * change[2] - dy * dy, change[3] });
     }
 }
+
+// Use 64-bit integers for height computations, find scale using maximum
+// change and prior to writing the results, map back. New parameter.
+// Speed-up using doubles first to see how fast that can be.
 
 static void compute_heights(std::vector<float>& Row,
     const std::uint32_t Left, const std::uint32_t Right,
@@ -60,14 +106,11 @@ static void compute_heights(std::vector<float>& Row,
     for (std::uint32_t x = Left; x < Right; ++x) {
         double delta = 0.0;
         for (auto& change : Spans) {
-            const double dx = std::min(abs(x - change[0]),
-                std::min(abs(x + Size - change[0]),
-                    abs(x - (change[0] + Size))));
-            if (change[1] < dx * dx)
-                continue;
-            delta += change[3];
+            const double dx = x - change[0];
+            if (dx * dx <= change[1])
+                delta += change[2];
         }
-        Row[x - Left] = float(delta);
+        Row[x - Left] = delta;
     }
 }
 
@@ -80,14 +123,15 @@ static void render_changes(io::RenderChangesIn& Val) {
     const std::uint32_t right = Val.rightGiven() ? std::min(Val.right(), size) : size;
     if (high <= low)
         return;
-    scale_changes(Val.changes(), size, 0.5 * Val.size());
+    io::RenderChangesIn::changesType scaled;
+    scale_changes(scaled, Val.changes(), size, 0.5 * Val.size(), left, right, low, high);
     std::vector<char> buffer;
     std::vector<float> row;
     if (left < right)
         row.resize(right - left);
     std::vector<std::vector<double>> spans;
     for (std::uint32_t y = low; y < high; ++y) {
-        pick_changes(spans, Val.changes(), y, size);
+        pick_changes(spans, scaled, y, size);
         compute_heights(row, left, right, spans, size);
         io::Write(std::cout, row, buffer);
         if (y + 1 != high)
@@ -155,18 +199,16 @@ int main(int argc, char** argv) {
 
 TEST_CASE("scale_changes") {
     io::RenderChangesIn::changesType changes(1);
+    io::RenderChangesIn::changesType scaled;
     SUBCASE("Halves") {
         changes.back() = std::vector<double> { 0.5, 0.5, 0.25, 1.0 };
-        scale_changes(changes, 4, 2.0f);
-        REQUIRE(changes.size() == 8);
-        REQUIRE(changes.front()[0] == 2.0f);
-        REQUIRE(changes.front()[1] == 2.0f);
-        REQUIRE(changes.front()[2] == 0.25f);
-        REQUIRE(changes.front()[3] == 1.0f);
-        REQUIRE(changes.front()[4] == 1.5f);
-        REQUIRE(changes.front()[5] == 2.5f);
-        REQUIRE(changes.front()[6] == 1.5f);
-        REQUIRE(changes.front()[7] == 2.5f);
+        scale_changes(scaled, changes, 4, 2.0f, 0, 4, 0, 4);
+        REQUIRE(scaled.size() == 1);
+        REQUIRE(scaled.front().size() == 1);
+        REQUIRE(scaled.front()[0] == 2.0f);
+        REQUIRE(scaled.front()[1] == 2.0f);
+        REQUIRE(scaled.front()[2] == 0.25f);
+        REQUIRE(scaled.front()[3] == 1.0f);
     }
 }
 
