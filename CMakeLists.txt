@@ -82,6 +82,7 @@ endfunction()
 setup_unittest_program(unittest-generate src/generatechanges.cpp generate_io)
 setup_unittest_program(unittest-render src/renderchanges.cpp render_io)
 setup_unittest_program(unittest-quickrender src/quickrenderchanges.cpp render_io)
+setup_unittest_program(unittest-referencerender src/referencerenderchanges.cpp render_io)
 setup_unittest_program(unittest-color src/pseudocolor.cpp color_io)
 
 function(add_test_prog PROG)
