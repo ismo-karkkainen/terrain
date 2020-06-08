@@ -34,15 +34,15 @@ endif()
 
 #### Main programs
 
-set(Programs generatechanges renderchanges quickrenderchanges pseudocolor)
+set(Programs generatechanges slowrenderchanges renderchanges pseudocolor vertexfield)
 
-set(Sources src/BlockQueue.cpp src/InputChannel.cpp src/FileDescriptorInput.cpp)
+set(Sources src/BlockQueue.cpp src/FileDescriptorInput.cpp)
 
 add_custom_target(parsers COMMENT "Generating types from README.md"
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/README.md
-    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io color_io
+    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io color_io vertexfield_io
     COMMAND specificjson --input pspecs
-    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp color_io.cpp color_io.hpp)
+    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp color_io.cpp color_io.hpp vertexfield_io.cpp)
 
 function(setup_main_program TGTNAME MAIN IO)
     add_executable(${TGTNAME} ${MAIN} ${Sources} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp)
@@ -55,10 +55,11 @@ function(setup_main_program TGTNAME MAIN IO)
 endfunction()
 
 setup_main_program(generatechanges src/generatechanges.cpp generate_io)
+setup_main_program(slowrenderchanges src/slowrenderchanges.cpp render_io)
 setup_main_program(renderchanges src/renderchanges.cpp render_io)
-setup_main_program(quickrenderchanges src/quickrenderchanges.cpp render_io)
 setup_main_program(referencerenderchanges src/referencerenderchanges.cpp render_io)
 setup_main_program(pseudocolor src/pseudocolor.cpp color_io)
+setup_main_program(vertexfield src/vertexfield.cpp vertexfield_io)
 
 install(TARGETS ${Programs} RUNTIME DESTINATION bin)
 
@@ -80,10 +81,11 @@ function(setup_unittest_program TGTNAME MAIN IO)
 endfunction()
 
 setup_unittest_program(unittest-generate src/generatechanges.cpp generate_io)
+setup_unittest_program(unittest-slowrender src/slowrenderchanges.cpp render_io)
 setup_unittest_program(unittest-render src/renderchanges.cpp render_io)
-setup_unittest_program(unittest-quickrender src/quickrenderchanges.cpp render_io)
 setup_unittest_program(unittest-referencerender src/referencerenderchanges.cpp render_io)
 setup_unittest_program(unittest-color src/pseudocolor.cpp color_io)
+setup_unittest_program(unittest-vertexfield src/vertexfield.cpp vertexfield_io)
 
 function(add_test_prog PROG)
     add_executable(${PROG} IMPORTED)

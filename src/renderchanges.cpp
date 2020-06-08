@@ -24,6 +24,14 @@
 #include <unistd.h>
 
 
+struct ScaledChange {
+    double x, y, r;
+    std::int64_t c;
+    ScaledChange() : x(0.0), y(0.0), r(0.0), c(0) { }
+    ScaledChange(double X, double Y, double R, std::int64_t C) :
+        x(X), y(Y), r(R), c(C) { }
+};
+
 static double delta_range(const double V, const double Low, const double High) {
     if (V < Low)
         return Low - V;
@@ -32,10 +40,20 @@ static double delta_range(const double V, const double Low, const double High) {
     return 0.0;
 }
 
+static double max_abs_change(const io::RenderChangesIn::changesType& Changes) {
+    double maxabs = 0.0;
+    for (auto& change : Changes) {
+        double cand = abs(change[3]);
+        if (maxabs < cand)
+            maxabs = cand;
+    }
+    return maxabs;
+}
+
 // Return value indicates if bounding box overlapped, i.e. close enough for
 // the placement in +/- Size to be well outside.
-static bool check_overlap(io::RenderChangesIn::changesType& Scaled,
-    const double X, const double Y, const double R, const double D,
+static bool check_overlap(std::vector<ScaledChange>& Scaled,
+    const double X, const double Y, const double R, const std::int64_t D,
     const double Left, const double Right, const double Low, const double High)
 {
     // Check if bounding box of the circle intersects with target rectangle.
@@ -52,21 +70,22 @@ static bool check_overlap(io::RenderChangesIn::changesType& Scaled,
     const double dy = delta_range(Y, Low, High);
     if (R * R < dx * dx + dy * dy)
         return true;
-    Scaled.push_back(std::vector<double> { X, Y, R, D });
+    Scaled.push_back(ScaledChange(X, Y, R, D));
     return true;
 }
 
-static void scale_changes(io::RenderChangesIn::changesType& Scaled,
+static void scale_changes(std::vector<ScaledChange>& Scaled,
     const io::RenderChangesIn::changesType& Changes, const double Size,
-    const double MaxRadius, const double Left, const double Right,
-    const double Low, const double High)
+    const double MaxRadius, const double ChangeScale,
+    const double Left, const double Right, const double Low, const double High)
 {
     Scaled.resize(0);
     for (auto& change : Changes) {
         const double x = change[0] * Size;
         const double y = change[1] * Size;
         const double r = change[2] * MaxRadius;
-        const double d = change[3];
+        const std::int64_t d =
+            static_cast<std::int64_t>(round(change[3] * ChangeScale));
         check_overlap(Scaled, x, y, r, d, Left, Right, Low, High);
         if (!check_overlap(Scaled, x - Size, y, r, d, Left, Right, Low, High))
             check_overlap(Scaled, x + Size, y, r, d, Left, Right, Low, High);
@@ -79,38 +98,55 @@ static void scale_changes(io::RenderChangesIn::changesType& Scaled,
     }
 }
 
-static void pick_changes(std::vector<std::vector<double>>& Spans,
-    const io::RenderChangesIn::changesType& Changes,
-    const double Y, const double Size)
+static void row_deltas(std::vector<std::int64_t>& Deltas,
+    const std::vector<ScaledChange>& Scaled, const double Y,
+    const double Size, const double Left, const double Right)
 {
-    Spans.resize(0);
-    for (auto& change : Changes) {
-        if (change[1] + change[2] < Y)
+    for (auto& change : Scaled) {
+        double diff = abs(Y - change.y);
+        if (change.r < diff)
             continue;
-        if (Y < change[1] - change[2])
+        double line_span = sqrt(change.r * change.r - diff * diff);
+        double from = change.x - line_span;
+        if (from < 0.0)
+            from = 0.0;
+        else if (Right < from)
             continue;
-        const double dy = Y - change[1];
-        Spans.push_back(std::vector<double> {
-            change[0], change[2] * change[2] - dy * dy, change[3] });
-    }
-}
-
-// Use 64-bit integers for height computations, find scale using maximum
-// change and prior to writing the results, map back. New parameter.
-// Speed-up using doubles first to see how fast that can be.
-
-static void compute_heights(std::vector<float>& Row,
-    const std::uint32_t Left, const std::uint32_t Right,
-    const std::vector<std::vector<double>>& Spans, const double Size)
-{
-    for (std::uint32_t x = Left; x < Right; ++x) {
-        double delta = 0.0;
-        for (auto& change : Spans) {
-            const double dx = x - change[0];
-            if (dx * dx <= change[1])
-                delta += change[2];
+        else {
+            // Check few adjacent values and pick smallest x that is within.
+            bool found = false;
+            for (double cx = floor(from) - 1.0;
+                cx < std::min(ceil(from) + 1.0, Size); ++cx)
+            {
+                double dx = cx - change.x;
+                if (dx * dx + diff * diff < change.r * change.r) {
+                    from = cx;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found || Size <= from)
+                continue; // Border-line case, no integer coordinate is inside.
         }
-        Row[x - Left] = delta;
+        double to = change.x + line_span;
+        if (Size < to)
+            to = Size;
+        else if (to < Left)
+            continue;
+        else {
+            // Check few adjacent values and pick smallest x that is outside.
+            for (double cx = std::max(from + 1.0, floor(to) - 1.0);
+                cx < ceil(to) + 1.0; ++cx)
+            {
+                double dx = cx - change.x;
+                if (change.r * change.r < dx * dx + diff * diff) {
+                    to = cx;
+                    break;
+                }
+            }
+        }
+        Deltas[from] += change.c;
+        Deltas[to] -= change.c;
     }
 }
 
@@ -123,16 +159,38 @@ static void render_changes(io::RenderChangesIn& Val) {
     const std::uint32_t right = Val.rightGiven() ? std::min(Val.right(), size) : size;
     if (high <= low)
         return;
-    io::RenderChangesIn::changesType scaled;
-    scale_changes(scaled, Val.changes(), size, 0.5 * Val.size(), left, right, low, high);
+    const double max = max_abs_change(Val.changes());
+
+    std::int64_t change_room;
+    if ((1 << 12) < Val.changes().size())
+        change_room = 1LL << (63 - int(ceil(log2(Val.changes().size()))));
+    else
+        change_room = 1LL << 51;
+    const double change_scale = floor(static_cast<double>(change_room) / max);
+    std::vector<ScaledChange> scaled;
+    scale_changes(scaled, Val.changes(), size, 0.5 * Val.size(), change_scale,
+        left, right, low, high);
     std::vector<char> buffer;
+    std::vector<std::int64_t> deltas(size + 1, 0);
     std::vector<float> row;
     if (left < right)
         row.resize(right - left);
-    std::vector<std::vector<double>> spans;
     for (std::uint32_t y = low; y < high; ++y) {
-        pick_changes(spans, scaled, y, size);
-        compute_heights(row, left, right, spans, size);
+        if (left < right) {
+            row_deltas(deltas, scaled, y, size, left, right);
+            std::int64_t height = 0;
+            for (std::uint32_t n = 0; n < left; ++n) {
+                height += deltas[n];
+                deltas[n] = 0;
+            }
+            for (std::uint32_t n = left; n < right; ++n) {
+                height += deltas[n];
+                deltas[n] = 0;
+                row[n - left] = height / change_scale;
+            }
+            for (std::uint32_t n = right; n < deltas.size(); ++n)
+                deltas[n] = 0;
+        }
         io::Write(std::cout, row, buffer);
         if (y + 1 != high)
             std::cout << ',';
@@ -211,285 +269,216 @@ TEST_CASE("check_overlap") {
     const double xh = 2.0 * c;
     const double yl = 0.0;
     const double yh = 2.0 * c;
-    io::RenderChangesIn::changesType scaled;
+    const std::int64_t cc = 1024;
+    std::vector<ScaledChange> scaled;
     SUBCASE("inside") {
         scaled.resize(0);
-        REQUIRE(check_overlap(scaled, c, c, c, c, xl, xh, yl, yh));
+        REQUIRE(check_overlap(scaled, c, c, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.size() == 1);
-        REQUIRE(scaled.front().size() == 4);
-        for (auto& v : scaled.front())
-            REQUIRE(v == c);
+        REQUIRE(scaled.front().x == c);
+        REQUIRE(scaled.front().y == c);
+        REQUIRE(scaled.front().r == c);
+        REQUIRE(scaled.front().c == cc);
     }
     SUBCASE("left out") {
         scaled.resize(0);
-        REQUIRE(!check_overlap(scaled, xl - 2.0 * c, c, c, c, xl, xh, yl, yh));
+        REQUIRE(!check_overlap(scaled, xl - 2.0 * c, c, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.empty());
     }
     SUBCASE("left partial") {
         scaled.resize(0);
         const double x = xl - 0.5 * c;
-        REQUIRE(check_overlap(scaled, x, c, c, c, xl, xh, yl, yh));
+        REQUIRE(check_overlap(scaled, x, c, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.size() == 1);
-        REQUIRE(scaled.front().size() == 4);
-        REQUIRE(scaled.front()[0] == x);
-        REQUIRE(scaled.front()[1] == c);
-        REQUIRE(scaled.front()[2] == c);
-        REQUIRE(scaled.front()[3] == c);
+        REQUIRE(scaled.front().x == x);
+        REQUIRE(scaled.front().y == c);
+        REQUIRE(scaled.front().r == c);
+        REQUIRE(scaled.front().c == cc);
     }
     SUBCASE("right partial") {
         scaled.resize(0);
         const double x = xh + 0.5 * c;
-        REQUIRE(check_overlap(scaled, x, c, c, c, xl, xh, yl, yh));
+        REQUIRE(check_overlap(scaled, x, c, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.size() == 1);
-        REQUIRE(scaled.front().size() == 4);
-        REQUIRE(scaled.front()[0] == x);
-        REQUIRE(scaled.front()[1] == c);
-        REQUIRE(scaled.front()[2] == c);
-        REQUIRE(scaled.front()[3] == c);
+        REQUIRE(scaled.front().x == x);
+        REQUIRE(scaled.front().y == c);
+        REQUIRE(scaled.front().r == c);
+        REQUIRE(scaled.front().c == cc);
     }
     SUBCASE("right out") {
         scaled.resize(0);
-        REQUIRE(!check_overlap(scaled, xh + 2.0 * c, c, c, c, xl, xh, yl, yh));
+        REQUIRE(!check_overlap(scaled, xh + 2.0 * c, c, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.empty());
     }
     SUBCASE("bottom out") {
         scaled.resize(0);
-        REQUIRE(!check_overlap(scaled, c, yl - 2.0 * c, c, c, xl, xh, yl, yh));
+        REQUIRE(!check_overlap(scaled, c, yl - 2.0 * c, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.empty());
     }
     SUBCASE("left partial") {
         scaled.resize(0);
         const double y = yl - 0.5 * c;
-        REQUIRE(check_overlap(scaled, c, y, c, c, xl, xh, yl, yh));
+        REQUIRE(check_overlap(scaled, c, y, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.size() == 1);
-        REQUIRE(scaled.front().size() == 4);
-        REQUIRE(scaled.front()[0] == c);
-        REQUIRE(scaled.front()[1] == y);
-        REQUIRE(scaled.front()[2] == c);
-        REQUIRE(scaled.front()[3] == c);
+        REQUIRE(scaled.front().x == c);
+        REQUIRE(scaled.front().y == y);
+        REQUIRE(scaled.front().r == c);
+        REQUIRE(scaled.front().c == cc);
     }
     SUBCASE("right partial") {
         scaled.resize(0);
         const double y = yh + 0.5 * c;
-        REQUIRE(check_overlap(scaled, c, y, c, c, xl, xh, yl, yh));
+        REQUIRE(check_overlap(scaled, c, y, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.size() == 1);
-        REQUIRE(scaled.front().size() == 4);
-        REQUIRE(scaled.front()[0] == c);
-        REQUIRE(scaled.front()[1] == y);
-        REQUIRE(scaled.front()[2] == c);
-        REQUIRE(scaled.front()[3] == c);
+        REQUIRE(scaled.front().x == c);
+        REQUIRE(scaled.front().y == y);
+        REQUIRE(scaled.front().r == c);
+        REQUIRE(scaled.front().c == cc);
     }
     SUBCASE("top out") {
         scaled.resize(0);
-        REQUIRE(!check_overlap(scaled, c, yh + 2.0 * c, c, c, xl, xh, yl, yh));
+        REQUIRE(!check_overlap(scaled, c, yh + 2.0 * c, c, cc, xl, xh, yl, yh));
         REQUIRE(scaled.empty());
     }
 }
 
+
+/*
 TEST_CASE("scale_changes") {
-    const double c = 1.0;
-    const double r = 0.5 * c;
-    const double xl = 0.0;
-    const double xh = 2.0 * c;
-    const double yl = 0.0;
-    const double yh = yl + xh;
     io::RenderChangesIn::changesType changes(1);
-    io::RenderChangesIn::changesType scaled;
-    SUBCASE("Inside") {
-        changes.back() = std::vector<double> { 0.5, 0.5, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 1);
-        REQUIRE(scaled.front().size() == 4);
-        REQUIRE(scaled.front()[0] == c);
-        REQUIRE(scaled.front()[1] == yl + c);
-        REQUIRE(scaled.front()[2] == r);
-        REQUIRE(scaled.front()[3] == c);
-    }
-    SUBCASE("Left edge") {
-        changes.back() = std::vector<double> { 0.0, 0.5, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 2);
-        for (auto& change : scaled) {
-            REQUIRE(change.size() == 4);
-            REQUIRE(change[1] == yl + c);
-            REQUIRE(change[2] == r);
-            REQUIRE(change[3] == c);
-        }
-        REQUIRE(fabs(scaled.front()[0] - scaled.back()[0]) == xh);
-    }
-    SUBCASE("Right edge") {
-        changes.back() = std::vector<double> { 1.0, 0.5, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 2);
-        for (auto& change : scaled) {
-            REQUIRE(change.size() == 4);
-            REQUIRE(change[1] == yl + c);
-            REQUIRE(change[2] == r);
-            REQUIRE(change[3] == c);
-        }
-        REQUIRE(fabs(scaled.front()[0] - scaled.back()[0]) == xh);
-    }
-    SUBCASE("Bottom edge") {
-        changes.back() = std::vector<double> { 0.5, 0.0, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 2);
-        for (auto& change : scaled) {
-            REQUIRE(change.size() == 4);
-            REQUIRE(change[0] == c);
-            REQUIRE(change[2] == r);
-            REQUIRE(change[3] == c);
-        }
-        REQUIRE(fabs(scaled.front()[1] - scaled.back()[1]) == xh);
-    }
-    SUBCASE("Top edge") {
-        changes.back() = std::vector<double> { 0.5, 1.0, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 2);
-        for (auto& change : scaled) {
-            REQUIRE(change.size() == 4);
-            REQUIRE(change[0] == c);
-            REQUIRE(change[2] == r);
-            REQUIRE(change[3] == c);
-        }
-        REQUIRE(fabs(scaled.front()[1] - scaled.back()[1]) == xh);
-    }
-    SUBCASE("Bottom left corner") {
-        changes.back() = std::vector<double> { 0.0, 0.0, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 4);
-        for (auto& change : scaled) {
-            REQUIRE(change.size() == 4);
-            REQUIRE(change[2] == r);
-            REQUIRE(change[3] == c);
-        }
-    }
-    SUBCASE("Top left corner") {
-        changes.back() = std::vector<double> { 0.0, 1.0, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 4);
-        for (auto& change : scaled) {
-            REQUIRE(change.size() == 4);
-            REQUIRE(change[2] == r);
-            REQUIRE(change[3] == c);
-        }
-    }
-    SUBCASE("Top right corner") {
-        changes.back() = std::vector<double> { 1.0, 1.0, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 4);
-        for (auto& change : scaled) {
-            REQUIRE(change.size() == 4);
-            REQUIRE(change[2] == r);
-            REQUIRE(change[3] == c);
-        }
-    }
-    SUBCASE("Bottom right corner") {
-        changes.back() = std::vector<double> { 1.0, 0.0, r, c };
-        scaled.resize(0);
-        scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-        REQUIRE(scaled.size() == 4);
-        for (auto& change : scaled) {
-            REQUIRE(change.size() == 4);
-            REQUIRE(change[2] == r);
-            REQUIRE(change[3] == c);
-        }
+    SUBCASE("Halves") {
+        changes.back() = std::vector<double> { 0.5, 0.5, 0.5, 1.0 };
+        scale_changes(changes, 4, 2.0f);
+        REQUIRE(changes.front()[0] == 2.0f);
+        REQUIRE(changes.front()[1] == 2.0f);
+        REQUIRE(changes.front()[2] == 1.0f);
+        REQUIRE(changes.front()[3] == 1.0f);
     }
 }
 
-TEST_CASE("pick_changes") {
-    const double c = 1.0;
-    const double r = 0.125 * c;
-    const double xl = 0.0;
-    const double xh = 2.0 * c;
-    const double yl = 0.0;
-    const double yh = yl + xh;
-    io::RenderChangesIn::changesType changes;
-    changes.push_back(std::vector<double> { 0.5, 0.0, r, c });
-    changes.push_back(std::vector<double> { 0.5, 0.5, r, c });
-    changes.push_back(std::vector<double> { 0.5, 1.0, r, c });
-    io::RenderChangesIn::changesType scaled;
-    scale_changes(scaled, changes, xh, c, xl, xh, yl, yh);
-    REQUIRE(scaled.size() == 5);
-    std::vector<std::vector<double>> spans;
-    SUBCASE("First, center") {
-        spans.resize(0);
-        pick_changes(spans, scaled, scaled[0][1], xh);
-        REQUIRE(spans.size() == 2);
-        REQUIRE(spans.front().size() == 3);
-        REQUIRE(spans.front()[0] == scaled[0][0]);
-        REQUIRE(spans.front()[1] == r * r);
-        REQUIRE(spans.front()[2] == scaled[0][3]);
+TEST_CASE("row_deltas") {
+    io::RenderChangesIn::changesType changes(1);
+    SUBCASE("Within") {
+        changes.back() = std::vector<double> { 2.0, 2.0, 0.98, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 2, 4, 0, 4);
+        REQUIRE(deltas[0] == 0.0);
+        REQUIRE(deltas[1] == 1.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == -1.0);
+        REQUIRE(deltas[4] == 0.0);
     }
-    SUBCASE("None") {
-        spans.resize(0);
-        pick_changes(spans, scaled, 0.5 * (scaled[0][1] + scaled[2][1]), xh);
-        REQUIRE(spans.size() == 0);
+    SUBCASE("Wrap") {
+        changes.back() = std::vector<double> { 3.99, 2.0, 1.0, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 2, 4, 0, 4);
+        REQUIRE(deltas[0] == 1.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == -1.0);
+        REQUIRE(deltas[3] == 1.0);
+        REQUIRE(deltas[4] == 0.0);
     }
-    SUBCASE("Second, edge") {
-        spans.resize(0);
-        pick_changes(spans, scaled, scaled[2][1] - r, xh);
-        REQUIRE(spans.size() == 1);
-        REQUIRE(spans.front().size() == 3);
-        REQUIRE(spans.front()[0] == scaled[2][0]);
-        REQUIRE(spans.front()[1] == 0.0);
-        REQUIRE(spans.front()[2] == scaled[2][3]);
+    SUBCASE("Entire row") {
+        changes.back() = std::vector<double> { 2.0, 2.0, 2.0, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 2, 4, 0, 4);
+        REQUIRE(deltas[0] == 1.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == 0.0);
+        REQUIRE(deltas[4] == 0.0);
     }
-    SUBCASE("Third") {
-        spans.resize(0);
-        pick_changes(spans, scaled, scaled[4][1] - 0.5 * r, xh);
-        REQUIRE(spans.size() == 2);
-        REQUIRE(spans.front().size() == 3);
-        REQUIRE(spans.front()[0] == scaled[4][0]);
-        REQUIRE(spans.front()[1] > 0.0);
-        REQUIRE(spans.front()[1] < r * r);
-        REQUIRE(spans.front()[2] == scaled[4][3]);
+    SUBCASE("Entire row wrapped") {
+        changes.back() = std::vector<double> { 3.0, 2.0, 2.0, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 2, 4, 0, 4);
+        REQUIRE(deltas[0] == 1.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == 0.0);
+        REQUIRE(deltas[4] == 0.0);
+    }
+    SUBCASE("Left side of range") {
+        changes.back() = std::vector<double> { 1.0, 2.0, 1.0, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 2, 4, 3, 4);
+        REQUIRE(deltas[0] == 0.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == 0.0);
+        REQUIRE(deltas[4] == 0.0);
+    }
+    SUBCASE("Right side of range") {
+        changes.back() = std::vector<double> { 3.0, 2.0, 1.0, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 2, 4, 0, 1);
+        REQUIRE(deltas[0] == 0.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == 0.0);
+        REQUIRE(deltas[4] == 0.0);
+    }
+    SUBCASE("Outside range wrapped via left") {
+        changes.back() = std::vector<double> { 0.0, 2.0, 1.0, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 2, 4, 2, 3);
+        REQUIRE(deltas[0] == 0.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == 0.0);
+        REQUIRE(deltas[4] == 0.0);
+    }
+    SUBCASE("Outside range wrapped via right") {
+        changes.back() = std::vector<double> { 4.0, 2.0, 1.0, 1.0 };
+        std::vector<double> deltas(6, 0.0);
+        row_deltas(changes, deltas, 2, 5, 1, 2);
+        REQUIRE(deltas[0] == 0.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == 0.0);
+        REQUIRE(deltas[4] == 0.0);
+        REQUIRE(deltas[5] == 0.0);
+    }
+    SUBCASE("Wrap top") {
+        changes.back() = std::vector<double> { 2.0, 0.0, 1.5, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 3, 4, 0, 4);
+        REQUIRE(deltas[0] == 0.0);
+        REQUIRE(deltas[1] == 1.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == -1.0);
+        REQUIRE(deltas[4] == 0.0);
+    }
+    SUBCASE("Wrap top full row") {
+        changes.back() = std::vector<double> { 2.0, 0.0, 2.0, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 3, 4, 0, 4);
+        REQUIRE(deltas[0] == 1.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == 0.0);
+        REQUIRE(deltas[4] == 0.0);
+    }
+    SUBCASE("Wrap bottom") {
+        changes.back() = std::vector<double> { 2.0, 3.0, 1.5, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 0, 4, 0, 4);
+        CHECK(deltas[0] == 0.0);
+        CHECK(deltas[1] == 1.0);
+        CHECK(deltas[2] == 0.0);
+        CHECK(deltas[3] == -1.0);
+        CHECK(deltas[4] == 0.0);
+    }
+    SUBCASE("Wrap bottom full row") {
+        changes.back() = std::vector<double> { 2.0, 3.9, 2.0, 1.0 };
+        std::vector<double> deltas(5, 0.0);
+        row_deltas(changes, deltas, 0, 4, 0, 4);
+        REQUIRE(deltas[0] == 1.0);
+        REQUIRE(deltas[1] == 0.0);
+        REQUIRE(deltas[2] == 0.0);
+        REQUIRE(deltas[3] == 0.0);
+        REQUIRE(deltas[4] == 0.0);
     }
 }
-
-TEST_CASE("compute_heights") {
-    std::vector<std::vector<double>> spans;
-    std::vector<float> row;
-    SUBCASE("Center") {
-        spans.resize(0);
-        row.resize(5, 0.0f);
-        spans.push_back(std::vector<double> { 2.0, 1.1, 1.0 });
-        compute_heights(row, 0, row.size(), spans, row.size());
-        REQUIRE(row[0] == 0.0f);
-        REQUIRE(row[1] == 1.0f);
-        REQUIRE(row[2] == 1.0f);
-        REQUIRE(row[3] == 1.0f);
-        REQUIRE(row[4] == 0.0f);
-    }
-    SUBCASE("Start") {
-        spans.resize(0);
-        row.resize(5, 0.0f);
-        spans.push_back(std::vector<double> { 0.5, 1.1, 1.0 });
-        compute_heights(row, 0, row.size(), spans, row.size());
-        REQUIRE(row[0] == 1.0f);
-        REQUIRE(row[1] == 1.0f);
-        REQUIRE(row[2] == 0.0f);
-        REQUIRE(row[3] == 0.0f);
-        REQUIRE(row[4] == 0.0f);
-    }
-    SUBCASE("End") {
-        spans.resize(0);
-        row.resize(5, 0.0f);
-        spans.push_back(std::vector<double> { 3.0, 1.1, 1.0 });
-        compute_heights(row, 0, row.size(), spans, row.size());
-        REQUIRE(row[0] == 0.0f);
-        REQUIRE(row[1] == 0.0f);
-        REQUIRE(row[2] == 1.0f);
-        REQUIRE(row[3] == 1.0f);
-        REQUIRE(row[4] == 1.0f);
-    }
-}
-
+*/
 #endif

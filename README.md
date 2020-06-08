@@ -139,6 +139,47 @@ render_io:
 ...
 ```
 
+## vertexfield
+
+Takes a height field and produces an array of XYZ vertices and triangles as
+indexes to the array.
+
+```
+---
+vertexfield_io:
+  namespace: io
+  types:
+    VertexFieldIn:
+      map:
+        description: Input height field.
+        format: [ ContainerStdVector, StdVector, Float ]
+      width:
+        description: |
+          Length in units of the StdVector for coordinates, in [0.0, width].
+          Defaults to width of the heightfield - 1.
+        format: Float
+        required: false
+      range:
+        description: Height range. By default same as in the height field.
+        format: Float
+        required: false
+    VertexFieldOut:
+      vertices:
+        description: Array of vertices.
+        format: [ ContainerStdVector, StdVector, Float ]
+        accessor: vertices
+      tristrips:
+        description: Array of arrays of triangle strip indexes.
+        format: [ ContainerStdVector, StdVector, UInt32 ]
+        accessor: tristrips
+  generate:
+    VertexFieldIn:
+      parser: true
+    VertexFieldOut:
+      writer: true
+...
+```
+
 ## pseudocolor
 
 Takes a height field and produces a matching image with height value mapped to

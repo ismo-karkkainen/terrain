@@ -1,6 +1,6 @@
 //
 //  FileDescriptorInput.cpp
-//  imageio / datalackey
+//  terrain / datalackey
 //
 //  Created by Ismo Kärkkäinen on 24.5.17.
 //  Copyright © 2017, 2020 Ismo Kärkkäinen. All rights reserved.

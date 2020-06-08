@@ -34,12 +34,22 @@
   - feed color input heightfield map
   - close color
   - wait_data image
+- vertex-init:
+  commands:
+  - launch vertex out JSON stdout out bytes stderr in JSON stdin program vertexfield
+- vertex:
+  - vertex-init
+  - convert
+  commands:
+  - feed vertex input heightfield map
+  - close vertex
+  - wait_data vertices tristrips
 - write-init:
   commands:
   - launch write out bytes stderr in JSON stdin program writeimage
 - write:
   - write-init
-  - convert
+  - vertex
   commands:
   - [feed, write, input, imagename, filename, input, image, image, direct, 16, depth]
   - close write
