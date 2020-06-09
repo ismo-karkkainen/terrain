@@ -5,6 +5,8 @@ set -eu
 echo $$ > seed.json
 echo "Seed for random number generation: $$"
 
+../simplecolormap simple > colormap.json
+
 cat radiuses |
 while read M
 do
@@ -15,4 +17,4 @@ do
     datalackey-make tgt -m $@
 done
 
-rm -f seed.json radius.json imagename.json
+rm -f seed.json colormap.json radius.json imagename.json

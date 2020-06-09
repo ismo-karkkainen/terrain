@@ -5,6 +5,8 @@ set -eu
 echo $$ > seed.json
 echo "Seed for random number generation: $$"
 
+../simplecolormap simple > colormap.json
+
 cat offset_mins |
 while read M
 do
@@ -16,4 +18,4 @@ do
     datalackey-make tgt -m $@
 done
 
-rm -f seed.json offset_min.json offset_max.json imagename.json
+rm -f seed.json colormap.json offset_min.json offset_max.json imagename.json

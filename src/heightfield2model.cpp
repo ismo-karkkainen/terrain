@@ -15,10 +15,11 @@
 #include "BlockQueue.hpp"
 #endif
 #include <cinttypes>
-typedef std::vector<std::vector<float>> HeightField;
+typedef std::vector<std::vector<float>> V3;
 typedef std::vector<std::vector<std::uint32_t>> TriStrips;
-#define IO_VERTEXFIELDOUT_TYPE VertexFieldOut_Template<HeightField,TriStrips>
-#include "vertexfield_io.hpp"
+#define IO_HEIGHTFIELD2MODELOUT_TYPE HeightField2ModelOut_Template<V3,V3,TriStrips>
+#include "heightfield2model_io.hpp"
+#include "colormap.hpp"
 #include <vector>
 #include <iostream>
 #include <cmath>
@@ -27,7 +28,9 @@ typedef std::vector<std::vector<std::uint32_t>> TriStrips;
 #include <unistd.h>
 
 
-static void minmax(io::VertexFieldIn::mapType& Map, float& Min, float& Max) {
+static void minmax(
+    io::HeightField2ModelIn::heightfieldType& Map, float& Min, float& Max)
+{
     Min = Max = Map.front().front();
     for (auto& line : Map)
         for (auto& value : line)
@@ -37,26 +40,26 @@ static void minmax(io::VertexFieldIn::mapType& Map, float& Min, float& Max) {
                 Max = value;
 }
 
-static void create_output(
-    io::VertexFieldOut& Out, io::VertexFieldIn& Val, float Min, float Max)
+static void create_output(io::HeightField2ModelOut& Out,
+    io::HeightField2ModelIn& Val, float Min, float Max)
 {
     // Each location into a vertex.
-    Out.vertices.reserve(Val.map().size() * Val.map().front().size());
-    float yscale = (Val.width() * Val.map().size()) / Val.map().front().size();
+    Out.vertices.reserve(Val.heightfield().size() * Val.heightfield().front().size());
+    float yscale = (Val.width() * Val.heightfield().size()) / Val.heightfield().front().size();
     const float zscale = Val.range() / (Max - Min);
-    for (size_t y = 0; y < Val.map().size(); ++y) {
-        const float yc = (y * yscale) / (Val.map().size() - 1);
-        for (size_t x = 0; x < Val.map()[y].size(); ++x) {
-            float xc = (x * Val.width()) / (Val.map().front().size() - 1);
-            float zc = zscale * Val.map()[y][x];
+    for (size_t y = 0; y < Val.heightfield().size(); ++y) {
+        const float yc = (y * yscale) / (Val.heightfield().size() - 1);
+        for (size_t x = 0; x < Val.heightfield()[y].size(); ++x) {
+            float xc = (x * Val.width()) / (Val.heightfield().front().size() - 1);
+            float zc = zscale * Val.heightfield()[y][x];
             Out.vertices.push_back(std::vector<float> { xc, yc, zc });
         }
     }
     // Each row into triangle strip using the indexes of the next row, too.
     // Last row is skipped.
-    Out.tristrips.reserve(Val.map().size() - 1);
-    const std::uint32_t step = Val.map().front().size();
-    for (std::uint32_t y = 0; y < Val.map().size() - 1; ++y) {
+    Out.tristrips.reserve(Val.heightfield().size() - 1);
+    const std::uint32_t step = Val.heightfield().front().size();
+    for (std::uint32_t y = 0; y < Val.heightfield().size() - 1; ++y) {
         Out.tristrips.push_back(std::vector<std::uint32_t>());
         Out.tristrips.back().reserve(2 * step);
         for (std::uint32_t x = 0; x < step; ++x)
@@ -67,6 +70,15 @@ static void create_output(
                 Out.tristrips.back().push_back((y + 1) * step + x);
                 Out.tristrips.back().push_back(y * step + x);
             }
+    }
+    if (Val.colormapGiven()) {
+        const float range = (Min < Max) ? Max - Min : 1.0f;
+        std::vector<std::vector<float>> map = Val.colormap();
+        SortColorMap(map);
+        Out.colors.reserve(Out.vertices.size());
+        for (auto& line : Val.heightfield())
+            for (auto& v : line)
+                Out.colors.push_back(Interpolated((v - Min) / range, map));
     }
 }
 
@@ -80,7 +92,7 @@ int main(int argc, char** argv) {
     FileDescriptorInput input(f);
     BlockQueue::BlockPtr buffer;
     io::ParserPool pp;
-    io::VertexFieldIn_Parser parser;
+    io::HeightField2ModelIn_Parser parser;
     std::vector<char> output_buffer;
     const char* end = nullptr;
     while (!input.Ended()) {
@@ -117,18 +129,24 @@ int main(int argc, char** argv) {
             end = nullptr;
             continue;
         }
-        io::VertexFieldIn val;
+        io::HeightField2ModelIn val;
         parser.Swap(val.values);
-        io::VertexFieldOut out;
-        if (!val.map().empty() && !val.map().front().empty()) {
-            if (!val.widthGiven())
-                val.width() = val.map().front().size() - 1;
-            float min, max;
-            minmax(val.map(), min, max);
-            if (!val.rangeGiven())
-                val.range() = max - min;
-            create_output(out, val, min, max);
+        if (val.heightfield().size() < 2) {
+            std::cerr << "Height field has less than 2 rows." << std::endl;
+            return 1;
         }
+        if (val.heightfield().front().size() < 2) {
+            std::cerr << "Height field has less than 2 columns." << std::endl;
+            return 1;
+        }
+        if (!val.widthGiven())
+            val.width() = val.heightfield().front().size() - 1;
+        float min, max;
+        minmax(val.heightfield(), min, max);
+        if (!val.rangeGiven())
+            val.range() = max - min;
+        io::HeightField2ModelOut out;
+        create_output(out, val, min, max);
         Write(std::cout, out, output_buffer);
         std::cout << std::endl;
     }
@@ -140,7 +158,7 @@ int main(int argc, char** argv) {
 #else
 
 TEST_CASE("minmax") {
-    io::VertexFieldIn::mapType map;
+    io::HeightField2ModelIn::heightfieldType map;
     SUBCASE("min first") {
         map.resize(0);
         map.push_back(std::vector<float> { -1.0f, 0.0f });
@@ -171,16 +189,16 @@ TEST_CASE("minmax") {
 }
 
 TEST_CASE("create_output") {
-    io::VertexFieldOut out;
-    io::VertexFieldIn val;
+    io::HeightField2ModelOut out;
+    io::HeightField2ModelIn val;
     val.range() = 4.0f;
     val.width() = 8.0f;
     float min, max;
     SUBCASE("1 strip") {
-        val.map().resize(0);
-        val.map().push_back(std::vector<float> { -1.0f, 0.0f });
-        val.map().push_back(std::vector<float> { 1.0f, 0.5f });
-        minmax(val.map(), min, max);
+        val.heightfield().resize(0);
+        val.heightfield().push_back(std::vector<float> { -1.0f, 0.0f });
+        val.heightfield().push_back(std::vector<float> { 1.0f, 0.5f });
+        minmax(val.heightfield(), min, max);
         create_output(out, val, min, max);
         REQUIRE(out.vertices.size() == 4);
         REQUIRE(out.vertices[0].size() == 3);
@@ -200,11 +218,11 @@ TEST_CASE("create_output") {
             REQUIRE(out.tristrips[0][k] == k);
     }
     SUBCASE("2 strips") {
-        val.map().resize(0);
-        val.map().push_back(std::vector<float> { -1.0f, 0.0f });
-        val.map().push_back(std::vector<float> { 3.0f, 2.0f });
-        val.map().push_back(std::vector<float> { 1.0f, 0.5f });
-        minmax(val.map(), min, max);
+        val.heightfield().resize(0);
+        val.heightfield().push_back(std::vector<float> { -1.0f, 0.0f });
+        val.heightfield().push_back(std::vector<float> { 3.0f, 2.0f });
+        val.heightfield().push_back(std::vector<float> { 1.0f, 0.5f });
+        minmax(val.heightfield(), min, max);
         create_output(out, val, min, max);
         REQUIRE(out.vertices.size() == 6);
         REQUIRE(out.tristrips.size() == 2);

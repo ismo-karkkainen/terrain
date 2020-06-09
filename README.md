@@ -139,20 +139,27 @@ render_io:
 ...
 ```
 
-## vertexfield
+## examples/simplecolormap
 
-Takes a height field and produces an array of XYZ vertices and triangles as
-indexes to the array.
+Takes color map name and outputs an array containing arrays of threshold
+followed by 1 or 3 color component values depending on map name.
+
+Run the script without arguments to display brief help.
+
+## heightfield2model
+
+Takes a height field and produces an array of XYZ vertices and triangle strips
+as indexes to the array.
 
 ```
 ---
-vertexfield_io:
+heightfield2model_io:
   namespace: io
   types:
-    VertexFieldIn:
-      map:
+    HeightField2ModelIn:
+      heightfield:
         description: Input height field.
-        format: [ ContainerStdVector, StdVector, Float ]
+        format: [ ContainerStdVectorEqSize, StdVector, Float ]
       width:
         description: |
           Length in units of the StdVector for coordinates, in [0.0, width].
@@ -160,53 +167,67 @@ vertexfield_io:
         format: Float
         required: false
       range:
-        description: Height range. By default same as in the height field.
+        description: Height range length. Defaults to same as height field.
         format: Float
         required: false
-    VertexFieldOut:
+      colormap:
+        description: |
+          Array of arrays of relative value in [0, 1] range and the color-value
+          to use. If not given, colors are not produced.
+        format: [ ContainerStdVectorEqSize, StdVector, Float ]
+        required: false
+    HeightField2ModelOut:
       vertices:
         description: Array of vertices.
         format: [ ContainerStdVector, StdVector, Float ]
         accessor: vertices
+      colors:
+        description: Array of RGB colors.
+        format: [ ContainerStdVector, StdVector, Float ]
+        accessor: colors
+        checker: "colors.size() != 0"
       tristrips:
         description: Array of arrays of triangle strip indexes.
         format: [ ContainerStdVector, StdVector, UInt32 ]
         accessor: tristrips
   generate:
-    VertexFieldIn:
+    HeightField2ModelIn:
       parser: true
-    VertexFieldOut:
+    HeightField2ModelOut:
       writer: true
 ...
 ```
 
-## pseudocolor
+## heightfield2color
 
 Takes a height field and produces a matching image with height value mapped to
-RGB color value.
+given value vector.
 
 ```
 ---
-color_io:
+heightfield2color_io:
   namespace: io
   types:
-    PseudoColorIn:
-      map:
-        description: Input height field.
+    HeightField2ColorIn:
+      heightfield:
+        description: Input height field. Any array of arrays of floats will do.
         format: [ ContainerStdVector, StdVector, Float ]
-      waterlevel:
-        description: Relative water level, defaults to 0.5, half under water.
-        format: Float
-        required: false
-    PseudoColorOut:
+      colormap:
+        description: |
+          Array of arrays of relative value in [0, 1] range and the color-value
+          to use to replace height values with.
+        format: [ ContainerStdVectorEqSize, StdVector, Float ]
+    HeightField2ColorOut:
       image:
-        description: RGB image.
+        description: |
+          Image with inner-most vector having as many components as the
+          colormap with threshold omitted.
         format: [ ContainerStdVector, ContainerStdVector, StdVector, Float ]
         accessor: image
   generate:
-    PseudoColorIn:
+    HeightField2ColorIn:
       parser: true
-    PseudoColorOut:
+    HeightField2ColorOut:
       writer: true
 ...
 ```

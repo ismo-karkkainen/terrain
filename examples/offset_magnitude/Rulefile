@@ -2,8 +2,8 @@
 - tgt: write
 - init:
   commands:
-  - run loader out JSON stdout out bytes stderr program files2mapped offset_min.json omin offset_max.json omax radius.json rad imagename.json imagename seed.json seed
-  - wait_data omin omax rad imagename seed
+  - run loader out JSON stdout out bytes stderr program files2mapped offset_min.json omin offset_max.json omax radius.json rad imagename.json imagename seed.json seed colormap.json colormap
+  - wait_data omin omax rad imagename seed colormap
 - generate-init:
   commands:
   - launch generate out JSON stdout out bytes stderr in JSON stdin program generatechanges
@@ -26,30 +26,30 @@
   - wait_data heightfield
 - convert-init:
   commands:
-  - launch color out JSON stdout out bytes stderr in JSON stdin program pseudocolor
+  - launch color out JSON stdout out bytes stderr in JSON stdin program heightfield2color
 - convert:
   - convert-init
   - render
   commands:
-  - feed color input heightfield map
+  - feed color input heightfield heightfield input colormap colormap
   - close color
   - wait_data image
-- vertex-init:
+- model-init:
   commands:
-  - launch vertex out JSON stdout out bytes stderr in JSON stdin program vertexfield
-- vertex:
-  - vertex-init
+  - launch model out JSON stdout out bytes stderr in JSON stdin program heightfield2model
+- model:
+  - model-init
   - convert
   commands:
-  - feed vertex input heightfield map
-  - close vertex
-  - wait_data vertices tristrips
+  - feed model input heightfield heightfield input colormap colormap
+  - close model
+  - wait_data vertices tristrips colors
 - write-init:
   commands:
   - launch write out bytes stderr in JSON stdin program writeimage
 - write:
   - write-init
-  - vertex
+  - model
   commands:
   - [feed, write, input, imagename, filename, input, image, image, direct, 16, depth]
   - close write

@@ -34,18 +34,18 @@ endif()
 
 #### Main programs
 
-set(Programs generatechanges slowrenderchanges renderchanges pseudocolor vertexfield)
+set(Programs generatechanges slowrenderchanges renderchanges heightfield2color heightfield2model)
 
 set(Sources src/BlockQueue.cpp src/FileDescriptorInput.cpp)
 
 add_custom_target(parsers COMMENT "Generating types from README.md"
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/README.md
-    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io color_io vertexfield_io
+    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io heightfield2color_io heightfield2model_io
     COMMAND specificjson --input pspecs
-    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp color_io.cpp color_io.hpp vertexfield_io.cpp)
+    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp heightfield2color_io.cpp heightfield2color_io.hpp heightfield2model_io.cpp heightfield2model_io.hpp)
 
 function(setup_main_program TGTNAME MAIN IO)
-    add_executable(${TGTNAME} ${MAIN} ${Sources} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp)
+    add_executable(${TGTNAME} ${MAIN} ${Sources} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp ${ARGN})
     add_dependencies(${TGTNAME} parsers)
     target_include_directories(${TGTNAME} SYSTEM PRIVATE /usr/local/include)
     target_include_directories(${TGTNAME} PRIVATE src)
@@ -58,18 +58,17 @@ setup_main_program(generatechanges src/generatechanges.cpp generate_io)
 setup_main_program(slowrenderchanges src/slowrenderchanges.cpp render_io)
 setup_main_program(renderchanges src/renderchanges.cpp render_io)
 setup_main_program(referencerenderchanges src/referencerenderchanges.cpp render_io)
-setup_main_program(pseudocolor src/pseudocolor.cpp color_io)
-setup_main_program(vertexfield src/vertexfield.cpp vertexfield_io)
+setup_main_program(heightfield2color src/heightfield2color.cpp heightfield2color_io src/colormap.cpp)
+setup_main_program(heightfield2model src/heightfield2model.cpp heightfield2model_io src/colormap.cpp)
 
 install(TARGETS ${Programs} RUNTIME DESTINATION bin)
-
 
 #### Tests
 
 enable_testing()
 
 function(setup_unittest_program TGTNAME MAIN IO)
-    add_executable(${TGTNAME} ${MAIN} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp)
+    add_executable(${TGTNAME} ${MAIN} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp ${ARGN})
     add_dependencies(${TGTNAME} parsers)
     target_include_directories(${TGTNAME} SYSTEM PRIVATE /usr/local/include)
     target_include_directories(${TGTNAME} PRIVATE src)
@@ -84,8 +83,8 @@ setup_unittest_program(unittest-generate src/generatechanges.cpp generate_io)
 setup_unittest_program(unittest-slowrender src/slowrenderchanges.cpp render_io)
 setup_unittest_program(unittest-render src/renderchanges.cpp render_io)
 setup_unittest_program(unittest-referencerender src/referencerenderchanges.cpp render_io)
-setup_unittest_program(unittest-color src/pseudocolor.cpp color_io)
-setup_unittest_program(unittest-vertexfield src/vertexfield.cpp vertexfield_io)
+setup_unittest_program(unittest-heightfield2color src/heightfield2color.cpp heightfield2color_io src/colormap.cpp)
+setup_unittest_program(unittest-heightfield2model src/heightfield2model.cpp heightfield2model_io src/colormap.cpp)
 
 function(add_test_prog PROG)
     add_executable(${PROG} IMPORTED)

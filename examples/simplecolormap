@@ -1,0 +1,48 @@
+#!/usr/bin/env ruby
+
+require 'json'
+
+maps = {
+  'simple' => Proc.new do |waterlevel|
+    # Transition in mapping at waterlevel.
+    map = []
+    map.push([ 0.0, 0.0, 0.0, 0.2 ]) if 0.0 < waterlevel
+    map.push([ waterlevel, 0.0, 1.0, 0.5 ])
+    map.push([ waterlevel + 1e-3, 0.0, 1.0, 0.5 ]) if waterlevel + 1e-3 < 1.0
+    map.push([ 1.0, 1.0, 0.0, 0.0 ]) if waterlevel < 1.0
+    map
+  end,
+  'rgbgrey' => Proc.new do |waterlevel|
+    # Waterlevel is middle-grey.
+    map = []
+    map.push([ 0.0, 0.0, 0.0, 0.0 ]) if 0.0 < waterlevel
+    map.push([ waterlevel, 0.5, 0.5, 0.5 ])
+    map.push([ 1.0, 1.0, 1.0, 1.0 ]) if waterlevel < 1.0
+    map
+  end,
+  'grey' => Proc.new do |waterlevel|
+    # Waterlevel is middle-grey.
+    map = []
+    map.push([ 0.0, 0.0 ]) if 0.0 < waterlevel
+    map.push([ waterlevel, 0.5 ])
+    map.push([ 1.0, 1.0 ]) if waterlevel < 1.0
+    map
+  end
+}
+
+if ARGV.empty?
+  STDERR.puts %Q(Usage: simplecolormap name [waterlevel]
+name is one of: #{maps.keys.sort.join(', ')}.
+waterlevel: an optional number preferably in [0, 1] range. Defaults to 0.5.
+)
+  exit 0
+end
+
+name = ARGV[0]
+waterlevel = (1 < ARGV.size) ? ARGV[1].to_f : 0.5
+p = maps.fetch(name, nil)
+if p.nil?
+  STDERR.puts "Color map name '#{name}' not in: #{maps.keys.sort.join(', ')}"
+  exit 2
+end
+puts JSON.generate(p.call(waterlevel))
