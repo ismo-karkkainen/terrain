@@ -108,18 +108,18 @@ static void row_deltas(std::vector<std::int64_t>& Deltas,
             continue;
         double line_span = sqrt(change.r * change.r - diff * diff);
         double from = change.x - line_span;
-        if (from < 0.0)
+        if (from <= 0.0)
             from = 0.0;
         else if (Right < from)
             continue;
         else {
             // Check few adjacent values and pick smallest x that is within.
             bool found = false;
-            for (double cx = floor(from) - 1.0;
+            for (double cx = std::max(0.0, floor(from) - 1.0);
                 cx < std::min(ceil(from) + 1.0, Size); ++cx)
             {
                 double dx = cx - change.x;
-                if (dx * dx + diff * diff < change.r * change.r) {
+                if (dx * dx + diff * diff <= change.r * change.r) {
                     from = cx;
                     found = true;
                     break;
@@ -129,14 +129,14 @@ static void row_deltas(std::vector<std::int64_t>& Deltas,
                 continue; // Border-line case, no integer coordinate is inside.
         }
         double to = change.x + line_span;
-        if (Size < to)
+        if (Size <= to)
             to = Size;
         else if (to < Left)
             continue;
         else {
             // Check few adjacent values and pick smallest x that is outside.
             for (double cx = std::max(from + 1.0, floor(to) - 1.0);
-                cx < ceil(to) + 1.0; ++cx)
+                cx <= std::min(ceil(to) + 1.0, Size); ++cx)
             {
                 double dx = cx - change.x;
                 if (change.r * change.r < dx * dx + diff * diff) {
@@ -342,143 +342,204 @@ TEST_CASE("check_overlap") {
     }
 }
 
+TEST_CASE("max_abs_change") {
+    io::RenderChangesIn::changesType changes;
+    SUBCASE("Only one") {
+        changes.resize(0);
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, 1.0 });
+        REQUIRE(max_abs_change(changes) == 1.0);
+    }
+    SUBCASE("Max second") {
+        changes.resize(0);
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, 1.0 });
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, 2.0 });
+        REQUIRE(max_abs_change(changes) == 2.0);
+    }
+    SUBCASE("Max first") {
+        changes.resize(0);
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, 2.0 });
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, 1.0 });
+        REQUIRE(max_abs_change(changes) == 2.0);
+    }
+    SUBCASE("Max first negative") {
+        changes.resize(0);
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, -2.0 });
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, 1.0 });
+        REQUIRE(max_abs_change(changes) == 2.0);
+    }
+    SUBCASE("Max second with negative") {
+        changes.resize(0);
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, -1.0 });
+        changes.push_back(std::vector<double> { 0.0, 0.0, 0.0, 2.0 });
+        REQUIRE(max_abs_change(changes) == 2.0);
+    }
+}
 
-/*
+static bool scaled_less(const ScaledChange& A, const ScaledChange& B) {
+    if (A.x != B.x)
+        return A.x < B.x;
+    return A.y < B.y;
+}
+
 TEST_CASE("scale_changes") {
     io::RenderChangesIn::changesType changes(1);
-    SUBCASE("Halves") {
+    std::vector<ScaledChange> scaled;
+    SUBCASE("Within") {
+        scaled.resize(0);
         changes.back() = std::vector<double> { 0.5, 0.5, 0.5, 1.0 };
-        scale_changes(changes, 4, 2.0f);
-        REQUIRE(changes.front()[0] == 2.0f);
-        REQUIRE(changes.front()[1] == 2.0f);
-        REQUIRE(changes.front()[2] == 1.0f);
-        REQUIRE(changes.front()[3] == 1.0f);
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 1);
+        REQUIRE(scaled.front().x == 2.0);
+        REQUIRE(scaled.front().y == 2.0);
+        REQUIRE(scaled.front().r == 1.0);
+        REQUIRE(scaled.front().c == 1);
+    }
+    SUBCASE("Wrap left") {
+        scaled.resize(0);
+        changes.back() = std::vector<double> { 0.0, 0.5, 0.5, 1.0 };
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 2);
+        REQUIRE(scaled[0].x == 0.0);
+        REQUIRE(scaled[1].x == 4.0);
+    }
+    SUBCASE("Wrap right") {
+        scaled.resize(0);
+        changes.back() = std::vector<double> { 1.0, 0.5, 0.5, 1.0 };
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 2);
+        REQUIRE(scaled[0].x == 4.0);
+        REQUIRE(scaled[1].x == 0.0);
+    }
+    SUBCASE("Wrap bottom") {
+        scaled.resize(0);
+        changes.back() = std::vector<double> { 0.5, 0.0, 0.5, 1.0 };
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 2);
+        REQUIRE(scaled[0].y == 0.0);
+        REQUIRE(scaled[1].y == 4.0);
+    }
+    SUBCASE("Wrap top") {
+        scaled.resize(0);
+        changes.back() = std::vector<double> { 0.5, 1.0, 0.5, 1.0 };
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 2);
+        REQUIRE(scaled[0].y == 4.0);
+        REQUIRE(scaled[1].y == 0.0);
+    }
+    SUBCASE("Wrap top left") {
+        scaled.resize(0);
+        changes.back() = std::vector<double> { 0.0, 1.0, 0.5, 1.0 };
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 4);
+        std::sort(scaled.begin(), scaled.end(), scaled_less);
+        REQUIRE(scaled[0].x == 0.0);
+        REQUIRE(scaled[0].y == 0.0);
+        REQUIRE(scaled[1].x == 0.0);
+        REQUIRE(scaled[1].y == 4.0);
+        REQUIRE(scaled[2].x == 4.0);
+        REQUIRE(scaled[2].y == 0.0);
+        REQUIRE(scaled[3].x == 4.0);
+        REQUIRE(scaled[3].y == 4.0);
+    }
+    SUBCASE("Wrap top right") {
+        scaled.resize(0);
+        changes.back() = std::vector<double> { 0.0, 1.0, 0.5, 1.0 };
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 4);
+        std::sort(scaled.begin(), scaled.end(), scaled_less);
+        REQUIRE(scaled[0].x == 0.0);
+        REQUIRE(scaled[0].y == 0.0);
+        REQUIRE(scaled[1].x == 0.0);
+        REQUIRE(scaled[1].y == 4.0);
+        REQUIRE(scaled[2].x == 4.0);
+        REQUIRE(scaled[2].y == 0.0);
+        REQUIRE(scaled[3].x == 4.0);
+        REQUIRE(scaled[3].y == 4.0);
+    }
+    SUBCASE("Wrap bottom right") {
+        scaled.resize(0);
+        changes.back() = std::vector<double> { 0.0, 0.0, 0.5, 1.0 };
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 4);
+        std::sort(scaled.begin(), scaled.end(), scaled_less);
+        REQUIRE(scaled[0].x == 0.0);
+        REQUIRE(scaled[0].y == 0.0);
+        REQUIRE(scaled[1].x == 0.0);
+        REQUIRE(scaled[1].y == 4.0);
+        REQUIRE(scaled[2].x == 4.0);
+        REQUIRE(scaled[2].y == 0.0);
+        REQUIRE(scaled[3].x == 4.0);
+        REQUIRE(scaled[3].y == 4.0);
+    }
+    SUBCASE("Wrap bottom left") {
+        scaled.resize(0);
+        changes.back() = std::vector<double> { 1.0, 0.0, 0.5, 1.0 };
+        scale_changes(scaled, changes, 4.0, 2.0, 1.0, 0.0, 4.0, 0.0, 4.0);
+        REQUIRE(scaled.size() == 4);
+        std::sort(scaled.begin(), scaled.end(), scaled_less);
+        REQUIRE(scaled[0].x == 0.0);
+        REQUIRE(scaled[0].y == 0.0);
+        REQUIRE(scaled[1].x == 0.0);
+        REQUIRE(scaled[1].y == 4.0);
+        REQUIRE(scaled[2].x == 4.0);
+        REQUIRE(scaled[2].y == 0.0);
+        REQUIRE(scaled[3].x == 4.0);
+        REQUIRE(scaled[3].y == 4.0);
     }
 }
 
 TEST_CASE("row_deltas") {
-    io::RenderChangesIn::changesType changes(1);
+    std::vector<ScaledChange> scaled(1);
     SUBCASE("Within") {
-        changes.back() = std::vector<double> { 2.0, 2.0, 0.98, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 2, 4, 0, 4);
-        REQUIRE(deltas[0] == 0.0);
-        REQUIRE(deltas[1] == 1.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == -1.0);
-        REQUIRE(deltas[4] == 0.0);
+        scaled.back() = ScaledChange(2.0, 2.0, 0.9, 1.0);
+        std::vector<std::int64_t> deltas(5, 0);
+        row_deltas(deltas, scaled, 2.0, 4.0, 0.0, 4.0);
+        CHECK(deltas[0] == 0);
+        CHECK(deltas[1] == 0);
+        CHECK(deltas[2] > 0);
+        CHECK(deltas[3] < 0);
+        CHECK(deltas[4] == 0);
     }
-    SUBCASE("Wrap") {
-        changes.back() = std::vector<double> { 3.99, 2.0, 1.0, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 2, 4, 0, 4);
-        REQUIRE(deltas[0] == 1.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == -1.0);
-        REQUIRE(deltas[3] == 1.0);
-        REQUIRE(deltas[4] == 0.0);
+    SUBCASE("Within at limit") {
+        scaled.back() = ScaledChange(2.0, 2.0, 1.0, 1.0);
+        std::vector<std::int64_t> deltas(5, 0);
+        row_deltas(deltas, scaled, 2.0, 4.0, 0.0, 4.0);
+        CHECK(deltas[0] == 0);
+        CHECK(deltas[1] > 0);
+        CHECK(deltas[2] == 0);
+        CHECK(deltas[3] == 0);
+        CHECK(deltas[4] < 0);
     }
     SUBCASE("Entire row") {
-        changes.back() = std::vector<double> { 2.0, 2.0, 2.0, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 2, 4, 0, 4);
-        REQUIRE(deltas[0] == 1.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == 0.0);
-        REQUIRE(deltas[4] == 0.0);
-    }
-    SUBCASE("Entire row wrapped") {
-        changes.back() = std::vector<double> { 3.0, 2.0, 2.0, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 2, 4, 0, 4);
-        REQUIRE(deltas[0] == 1.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == 0.0);
-        REQUIRE(deltas[4] == 0.0);
+        scaled.back() = ScaledChange(2.0, 2.0, 2.0, 1.0);
+        std::vector<std::int64_t> deltas(5, 0);
+        row_deltas(deltas, scaled, 2.0, 4.0, 0.0, 4.0);
+        CHECK(deltas[0] > 0);
+        CHECK(deltas[1] == 0);
+        CHECK(deltas[2] == 0);
+        CHECK(deltas[3] == 0);
+        CHECK(deltas[4] < 0);
     }
     SUBCASE("Left side of range") {
-        changes.back() = std::vector<double> { 1.0, 2.0, 1.0, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 2, 4, 3, 4);
-        REQUIRE(deltas[0] == 0.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == 0.0);
-        REQUIRE(deltas[4] == 0.0);
+        scaled.back() = ScaledChange(1.0, 2.0, 1.0, 1.0);
+        std::vector<std::int64_t> deltas(5, 0);
+        row_deltas(deltas, scaled, 2.0, 4.0, 3.0, 4.0);
+        CHECK(deltas[0] == 0);
+        CHECK(deltas[1] == 0);
+        CHECK(deltas[2] == 0);
+        CHECK(deltas[3] == 0);
+        CHECK(deltas[4] == 0);
     }
     SUBCASE("Right side of range") {
-        changes.back() = std::vector<double> { 3.0, 2.0, 1.0, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 2, 4, 0, 1);
-        REQUIRE(deltas[0] == 0.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == 0.0);
-        REQUIRE(deltas[4] == 0.0);
-    }
-    SUBCASE("Outside range wrapped via left") {
-        changes.back() = std::vector<double> { 0.0, 2.0, 1.0, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 2, 4, 2, 3);
-        REQUIRE(deltas[0] == 0.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == 0.0);
-        REQUIRE(deltas[4] == 0.0);
-    }
-    SUBCASE("Outside range wrapped via right") {
-        changes.back() = std::vector<double> { 4.0, 2.0, 1.0, 1.0 };
-        std::vector<double> deltas(6, 0.0);
-        row_deltas(changes, deltas, 2, 5, 1, 2);
-        REQUIRE(deltas[0] == 0.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == 0.0);
-        REQUIRE(deltas[4] == 0.0);
-        REQUIRE(deltas[5] == 0.0);
-    }
-    SUBCASE("Wrap top") {
-        changes.back() = std::vector<double> { 2.0, 0.0, 1.5, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 3, 4, 0, 4);
-        REQUIRE(deltas[0] == 0.0);
-        REQUIRE(deltas[1] == 1.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == -1.0);
-        REQUIRE(deltas[4] == 0.0);
-    }
-    SUBCASE("Wrap top full row") {
-        changes.back() = std::vector<double> { 2.0, 0.0, 2.0, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 3, 4, 0, 4);
-        REQUIRE(deltas[0] == 1.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == 0.0);
-        REQUIRE(deltas[4] == 0.0);
-    }
-    SUBCASE("Wrap bottom") {
-        changes.back() = std::vector<double> { 2.0, 3.0, 1.5, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 0, 4, 0, 4);
-        CHECK(deltas[0] == 0.0);
-        CHECK(deltas[1] == 1.0);
-        CHECK(deltas[2] == 0.0);
-        CHECK(deltas[3] == -1.0);
-        CHECK(deltas[4] == 0.0);
-    }
-    SUBCASE("Wrap bottom full row") {
-        changes.back() = std::vector<double> { 2.0, 3.9, 2.0, 1.0 };
-        std::vector<double> deltas(5, 0.0);
-        row_deltas(changes, deltas, 0, 4, 0, 4);
-        REQUIRE(deltas[0] == 1.0);
-        REQUIRE(deltas[1] == 0.0);
-        REQUIRE(deltas[2] == 0.0);
-        REQUIRE(deltas[3] == 0.0);
-        REQUIRE(deltas[4] == 0.0);
+        scaled.back() = ScaledChange(3.0, 2.0, 1.0, 1.0);
+        std::vector<std::int64_t> deltas(5, 0);
+        row_deltas(deltas, scaled, 2.0, 4.0, 0.0, 1.0);
+        CHECK(deltas[0] == 0);
+        CHECK(deltas[1] == 0);
+        CHECK(deltas[2] == 0);
+        CHECK(deltas[3] == 0);
+        CHECK(deltas[4] == 0);
     }
 }
-*/
+
 #endif

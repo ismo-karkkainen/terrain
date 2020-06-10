@@ -40,45 +40,63 @@ static void minmax(
                 Max = value;
 }
 
+static void create_vertices(V3& Vertices,
+    const io::HeightField2ModelIn::heightfieldType& Heightfield,
+    const float Width, const float Range, const float Min, const float Max)
+{
+    Vertices.reserve(Heightfield.size() * Heightfield.front().size());
+    const float zscale = Range / (Max - Min);
+    for (size_t y = 0; y < Heightfield.size(); ++y) {
+        const float yc = (y * Width) / (Heightfield.front().size() - 1);
+        const std::vector<float>& row = Heightfield[y];
+        for (size_t x = 0; x < row.size(); ++x) {
+            float xc = (x * Width) / (row.size() - 1);
+            float zc = zscale * row[x];
+            Vertices.push_back(std::vector<float> { xc, yc, zc });
+        }
+    }
+}
+
+static void create_tristrips(TriStrips& TS, size_t Rows, size_t Columns) {
+    // Each row into triangle strip using the indexes of the next row, too.
+    // Last row is skipped.
+    TS.reserve(Rows - 1);
+    for (std::uint32_t y = 0; y < Rows - 1; ++y) {
+        TS.push_back(std::vector<std::uint32_t>());
+        TS.back().reserve(2 * Columns);
+        for (std::uint32_t x = 0; x < Columns; ++x)
+            if (y & 1) { // Makes zig-zag and not straight triangle edge lines.
+                TS.back().push_back(y * Columns + x);
+                TS.back().push_back((y + 1) * Columns + x);
+            } else {
+                TS.back().push_back((y + 1) * Columns + x);
+                TS.back().push_back(y * Columns + x);
+            }
+    }
+}
+
+static void create_colors(V3& Colors,
+    const io::HeightField2ModelIn::heightfieldType& Heightfield,
+    const io::HeightField2ModelIn::colormapType& Colormap,
+    const float Min, const float Max)
+{
+    const float range = (Min < Max) ? Max - Min : 1.0f;
+    Colors.reserve(Heightfield.size() * Heightfield.front().size());
+    for (auto& line : Heightfield)
+        for (auto& v : line)
+            Colors.push_back(Interpolated((v - Min) / range, Colormap));
+}
+
 static void create_output(io::HeightField2ModelOut& Out,
     io::HeightField2ModelIn& Val, float Min, float Max)
 {
-    // Each location into a vertex.
-    Out.vertices.reserve(Val.heightfield().size() * Val.heightfield().front().size());
-    float yscale = (Val.width() * Val.heightfield().size()) / Val.heightfield().front().size();
-    const float zscale = Val.range() / (Max - Min);
-    for (size_t y = 0; y < Val.heightfield().size(); ++y) {
-        const float yc = (y * yscale) / (Val.heightfield().size() - 1);
-        for (size_t x = 0; x < Val.heightfield()[y].size(); ++x) {
-            float xc = (x * Val.width()) / (Val.heightfield().front().size() - 1);
-            float zc = zscale * Val.heightfield()[y][x];
-            Out.vertices.push_back(std::vector<float> { xc, yc, zc });
-        }
-    }
-    // Each row into triangle strip using the indexes of the next row, too.
-    // Last row is skipped.
-    Out.tristrips.reserve(Val.heightfield().size() - 1);
-    const std::uint32_t step = Val.heightfield().front().size();
-    for (std::uint32_t y = 0; y < Val.heightfield().size() - 1; ++y) {
-        Out.tristrips.push_back(std::vector<std::uint32_t>());
-        Out.tristrips.back().reserve(2 * step);
-        for (std::uint32_t x = 0; x < step; ++x)
-            if (y & 1) { // Makes zig-zag and not straight triangle edge lines.
-                Out.tristrips.back().push_back(y * step + x);
-                Out.tristrips.back().push_back((y + 1) * step + x);
-            } else {
-                Out.tristrips.back().push_back((y + 1) * step + x);
-                Out.tristrips.back().push_back(y * step + x);
-            }
-    }
+    create_vertices(Out.vertices, Val.heightfield(), Val.width(), Val.range(),
+        Min, Max);
+    create_tristrips(Out.tristrips,
+        Val.heightfield().size(), Val.heightfield().front().size());
     if (Val.colormapGiven()) {
-        const float range = (Min < Max) ? Max - Min : 1.0f;
-        std::vector<std::vector<float>> map = Val.colormap();
-        SortColorMap(map);
-        Out.colors.reserve(Out.vertices.size());
-        for (auto& line : Val.heightfield())
-            for (auto& v : line)
-                Out.colors.push_back(Interpolated((v - Min) / range, map));
+        SortColorMap(Val.colormap());
+        create_colors(Out.colors, Val.heightfield(), Val.colormap(), Min, Max);
     }
 }
 
@@ -231,6 +249,136 @@ TEST_CASE("create_output") {
         std::sort(out.tristrips[1].begin(), out.tristrips[1].end());
         for (std::uint32_t k = 0; k < out.tristrips[1].size(); ++k)
             REQUIRE(out.tristrips[1][k] == k + 2);
+    }
+}
+
+TEST_CASE("create_vertices") {
+    io::HeightField2ModelIn::heightfieldType hf;
+    V3 vertices;
+    SUBCASE("Index coordinates, original height.") {
+        hf.resize(0);
+        vertices.resize(0);
+        hf.push_back(std::vector<float> { -1.0f, 0.0f });
+        hf.push_back(std::vector<float> { 3.0f, 2.0f });
+        create_vertices(vertices, hf, 1.0f, 4.0f, -1.0f, 3.0f);
+        REQUIRE(vertices.size() == hf.size() * hf.front().size());
+        REQUIRE(vertices[0].size() == 3);
+        for (size_t y = 0; y < hf.size(); ++y)
+            for (size_t x = 0; x < hf.front().size(); ++x) {
+                const size_t idx = y * hf.front().size() + x;
+                REQUIRE(vertices[idx][0] == x);
+                REQUIRE(vertices[idx][1] == y);
+                REQUIRE(vertices[idx][2] == hf[y][x]);
+            }
+    }
+    SUBCASE("Double coordinates, halve height.") {
+        hf.resize(0);
+        vertices.resize(0);
+        hf.push_back(std::vector<float> { -1.0f, 0.0f });
+        hf.push_back(std::vector<float> { 3.0f, 2.0f });
+        create_vertices(vertices, hf, 2.0f, 2.0f, -1.0f, 3.0f);
+        REQUIRE(vertices.size() == hf.size() * hf.front().size());
+        REQUIRE(vertices[0].size() == 3);
+        for (size_t y = 0; y < hf.size(); ++y)
+            for (size_t x = 0; x < hf.front().size(); ++x) {
+                const size_t idx = y * hf.front().size() + x;
+                REQUIRE(vertices[idx][0] == 2.0f * x);
+                REQUIRE(vertices[idx][1] == 2.0f * y);
+                REQUIRE(vertices[idx][2] == 0.5f * hf[y][x]);
+            }
+    }
+    SUBCASE("Fewer rows than columns.") {
+        hf.resize(0);
+        vertices.resize(0);
+        hf.push_back(std::vector<float> { -1.0f, 0.0f, 1.0f });
+        hf.push_back(std::vector<float> { 3.0f, 2.0f, 0.0f });
+        create_vertices(vertices, hf, 6.0f, 2.0f, -1.0f, 3.0f);
+        REQUIRE(vertices.size() == hf.size() * hf.front().size());
+        REQUIRE(vertices[0].size() == 3);
+        for (size_t y = 0; y < hf.size(); ++y)
+            for (size_t x = 0; x < hf.front().size(); ++x) {
+                const size_t idx = y * hf.front().size() + x;
+                REQUIRE(vertices[idx][0] == 3.0f * x);
+                REQUIRE(vertices[idx][1] == 3.0f * y);
+                REQUIRE(vertices[idx][2] == 0.5f * hf[y][x]);
+            }
+    }
+    SUBCASE("Fewer columns than rows.") {
+        hf.resize(0);
+        vertices.resize(0);
+        hf.push_back(std::vector<float> { -1.0f, 1.0f });
+        hf.push_back(std::vector<float> { 3.0f, 0.0f });
+        hf.push_back(std::vector<float> { 2.0f, 0.0f });
+        create_vertices(vertices, hf, 6.0f, 2.0f, -1.0f, 3.0f);
+        REQUIRE(vertices.size() == hf.size() * hf.front().size());
+        REQUIRE(vertices[0].size() == 3);
+        for (size_t y = 0; y < hf.size(); ++y)
+            for (size_t x = 0; x < hf.front().size(); ++x) {
+                const size_t idx = y * hf.front().size() + x;
+                REQUIRE(vertices[idx][0] == 6.0f * x);
+                REQUIRE(vertices[idx][1] == 6.0f * y);
+                REQUIRE(vertices[idx][2] == 0.5f * hf[y][x]);
+            }
+    }
+}
+
+TEST_CASE("create_tristrips") {
+    TriStrips strips;
+    SUBCASE("2x2") {
+        strips.resize(0);
+        const size_t size = 2;
+        create_tristrips(strips, size, size);
+        REQUIRE(strips.size() == size - 1);
+        REQUIRE(strips.front().size() == 2 * size);
+        for (size_t k = 1; k < strips.front().size(); k += 2)
+            if (strips.front()[k] < strips.front()[k - 1])
+                REQUIRE(strips.front()[k - 1] - strips.front()[k] == size);
+            else
+                REQUIRE(strips.front()[k] - strips.front()[k - 1] == size);
+        for (size_t k = 2; k < strips.front().size(); k += 2)
+            REQUIRE(strips.front()[k] - strips.front()[k - 2] == 1);
+        std::sort(strips.front().begin(), strips.front().end());
+        for (size_t k = 0; k < strips.front().size(); ++k)
+            REQUIRE(strips.front()[k] == k);
+    }
+    SUBCASE("3x3") {
+        strips.resize(0);
+        const size_t size = 3;
+        create_tristrips(strips, size, size);
+        REQUIRE(strips.size() == size - 1);
+        for (size_t n = 0; n < strips.size(); ++n) {
+            auto& strip = strips[n];
+            REQUIRE(strip.size() == 2 * size);
+            for (size_t k = 1; k < strip.size(); k += 2)
+                if (strip[k] < strip[k - 1])
+                    REQUIRE(strip[k - 1] - strip[k] == size);
+                else
+                    REQUIRE(strip[k] - strip[k - 1] == size);
+            for (size_t k = 2; k < strip.size(); k += 2)
+                REQUIRE(strip[k] - strip[k - 2] == 1);
+            std::sort(strip.begin(), strip.end());
+            for (size_t k = 0; k < strip.size(); ++k)
+                REQUIRE(strip[k] == k + n * size);
+        }
+    }
+}
+
+TEST_CASE("create_colors") {
+    io::HeightField2ModelIn::heightfieldType hf;
+    io::HeightField2ModelIn::colormapType colormap;
+    colormap.push_back(std::vector<float> { 0.0f, 0.0f });
+    colormap.push_back(std::vector<float> { 1.0f, 1.0f });
+    V3 colors;
+    SUBCASE("Size matches") {
+        hf.resize(0);
+        colors.resize(0);
+        hf.push_back(std::vector<float> { -1.0f, 1.0f });
+        hf.push_back(std::vector<float> { 3.0f, 0.0f });
+        hf.push_back(std::vector<float> { 2.0f, 0.0f });
+        create_colors(colors, hf, colormap, -1.0f, 3.0f);
+        REQUIRE(colors.size() == hf.size() * hf.front().size());
+        for (auto& color : colors)
+            REQUIRE(color.size() == colormap.front().size() - 1);
     }
 }
 
