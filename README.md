@@ -238,7 +238,7 @@ Under directory examples, there are subdirectories. You need to have installed
 
     https://github.com/ismo-karkkainen/datalackey
     https://github.com/ismo-karkkainen/datalackeyshell
-    https://github.com/ismo-karkkainen/imageio
+    https://github.com/ismo-karkkainen/fileio
 
 In the subdirectories, the example can be run by running the run.sh script.
 

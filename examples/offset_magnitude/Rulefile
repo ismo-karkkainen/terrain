@@ -2,7 +2,7 @@
 - tgt: write
 - init:
   commands:
-  - run loader out JSON stdout out bytes stderr program files2mapped offset_min.json omin offset_max.json omax radius.json rad imagename.json imagename seed.json seed colormap.json colormap
+  - run loader out JSON stdout out bytes stderr program files2mapped offset_min.json omin offset_max.json omax radius.json rad imagename.json imagename seed.json seed colormap.json colormap modelname.json modelname
   - wait_data omin omax rad imagename seed colormap
 - generate-init:
   commands:
@@ -47,10 +47,12 @@
 - write-init:
   commands:
   - launch write out bytes stderr in JSON stdin program writeimage
+  - launch wrmodel out bytes stderr in JSON stdin program writegltf
 - write:
   - write-init
   - model
   commands:
   - [feed, write, input, imagename, filename, input, image, image, direct, 16, depth]
-  - close write
-  - wait_process 60 write
+  - feed wrmodel input modelname filename input vertices vertices input colors colors input tristrips tristrips
+  - close write wrmodel
+  - wait_process 60 write wrmodel

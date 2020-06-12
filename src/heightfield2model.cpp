@@ -64,14 +64,10 @@ static void create_tristrips(TriStrips& TS, size_t Rows, size_t Columns) {
     for (std::uint32_t y = 0; y < Rows - 1; ++y) {
         TS.push_back(std::vector<std::uint32_t>());
         TS.back().reserve(2 * Columns);
-        for (std::uint32_t x = 0; x < Columns; ++x)
-            if (y & 1) { // Makes zig-zag and not straight triangle edge lines.
-                TS.back().push_back(y * Columns + x);
-                TS.back().push_back((y + 1) * Columns + x);
-            } else {
-                TS.back().push_back((y + 1) * Columns + x);
-                TS.back().push_back(y * Columns + x);
-            }
+        for (std::uint32_t x = 0; x < Columns; ++x) {
+            TS.back().push_back(y * Columns + x);
+            TS.back().push_back((y + 1) * Columns + x);
+        }
     }
 }
 
@@ -331,10 +327,7 @@ TEST_CASE("create_tristrips") {
         REQUIRE(strips.size() == size - 1);
         REQUIRE(strips.front().size() == 2 * size);
         for (size_t k = 1; k < strips.front().size(); k += 2)
-            if (strips.front()[k] < strips.front()[k - 1])
-                REQUIRE(strips.front()[k - 1] - strips.front()[k] == size);
-            else
-                REQUIRE(strips.front()[k] - strips.front()[k - 1] == size);
+            REQUIRE(strips.front()[k] - strips.front()[k - 1] == size);
         for (size_t k = 2; k < strips.front().size(); k += 2)
             REQUIRE(strips.front()[k] - strips.front()[k - 2] == 1);
         std::sort(strips.front().begin(), strips.front().end());
@@ -350,10 +343,7 @@ TEST_CASE("create_tristrips") {
             auto& strip = strips[n];
             REQUIRE(strip.size() == 2 * size);
             for (size_t k = 1; k < strip.size(); k += 2)
-                if (strip[k] < strip[k - 1])
-                    REQUIRE(strip[k - 1] - strip[k] == size);
-                else
-                    REQUIRE(strip[k] - strip[k - 1] == size);
+                REQUIRE(strip[k] - strip[k - 1] == size);
             for (size_t k = 2; k < strip.size(); k += 2)
                 REQUIRE(strip[k] - strip[k - 2] == 1);
             std::sort(strip.begin(), strip.end());
