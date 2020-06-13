@@ -10,7 +10,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #else
-#include "FileDescriptorInput.hpp"
+#include "convenience.hpp"
 #endif
 #include "generate_io.hpp"
 #include <vector>
@@ -143,7 +143,69 @@ static double redistribute(double Value, const RangeMap Map) {
 }
 
 #if !defined(UNITTEST)
-static const size_t block_size = 65536;
+
+static int generate(io::GenerateIn& Val) {
+    std::vector<char> output_buffer;
+    const double s = 1.0 / static_cast<double>(std::mt19937_64::max());
+    std::vector<double> change(4, 0.0);
+    try {
+        check_map(Val.radius_minGiven(), Val.radius_min(), 0.0f);
+        check_map(Val.radius_maxGiven(), Val.radius_max(), 1.0f);
+        check_map(Val.radius_rangeGiven(), Val.radius_range(), 1.0f);
+        check_map(Val.offset_minGiven(), Val.offset_min(), -1.0f);
+        check_map(Val.offset_maxGiven(), Val.offset_max(), 1.0f);
+        check_map(Val.offset_rangeGiven(), Val.offset_range(), 2.0f);
+        check_histogram(Val.offset_histogramGiven(), Val.offset_histogram());
+        check_histogram(Val.radius_histogramGiven(), Val.radius_histogram());
+    }
+    catch (const char* msg) {
+        std::cerr << msg << std::endl;
+        return 2;
+    }
+    if (Val.seedGiven())
+        rnd.seed(Val.seed());
+    Mapper radius = [&Val](double x, double y, double r) {
+        return minrange(x, y, r, Val.radius_min(), Val.radius_range());
+    };
+    if (Val.radius_minGiven() && Val.radius_maxGiven()) {
+        radius = [&Val](double x, double y, double r) {
+            return minmax(x, y, r, Val.radius_min(), Val.radius_max());
+        };
+    } else if (Val.radius_maxGiven()) {
+        radius = [&Val](double x, double y, double r) {
+            return maxrange(x, y, r, Val.radius_max(), Val.radius_range());
+        };
+    }
+    Mapper offset = [&Val](double x, double y, double r) {
+        return minrange(x, y, r, Val.offset_min(), Val.offset_range());
+    };
+    if (Val.offset_minGiven() && Val.offset_maxGiven()) {
+        offset = [&Val](double x, double y, double r) {
+            return minmax(x, y, r, Val.offset_min(), Val.offset_max());
+        };
+    } else if (Val.offset_maxGiven()) {
+        offset = [&Val](double x, double y, double r) {
+            return maxrange(x, y, r, Val.offset_max(), Val.offset_range());
+        };
+    }
+    normalize_histogram(Val.offset_histogram());
+    RangeMap offset_map = histogram2rangemap(Val.offset_histogram());
+    normalize_histogram(Val.radius_histogram());
+    RangeMap radius_map = histogram2rangemap(Val.radius_histogram());
+    std::cout << "{\"changes\":[";
+    for (std::uint32_t k = 0; k < Val.count(); ++k) {
+        for (auto& v : change)
+            v = s * static_cast<double>(rnd());
+        change[2] = redistribute(change[2], radius_map);
+        change[3] = redistribute(change[3], offset_map);
+        generate_change(change, radius, offset);
+        io::Write(std::cout, change, output_buffer);
+        if (k + 1 != Val.count())
+            std::cout << ',';
+    }
+    std::cout << "]}" << std::endl;
+    return 0;
+}
 
 int main(int argc, char** argv) {
     struct timespec ts;
@@ -154,103 +216,11 @@ int main(int argc, char** argv) {
     int f = 0;
     if (argc > 1)
         f = open(argv[1], O_RDONLY);
-    FileDescriptorInput input(f);
-    std::vector<char> buffer(block_size + 1, 0);
-    io::ParserPool pp;
-    io::GenerateIn_Parser parser;
-    std::vector<char> output_buffer;
-    const double s = 1.0 / static_cast<double>(std::mt19937_64::max());
-    std::vector<double> change(4, 0.0);
-    const char* end = nullptr;
-    while (!input.Ended()) {
-        if (end == nullptr) {
-            if (buffer.size() != block_size + 1)
-                buffer.resize(block_size + 1);
-            int count = input.Read(&buffer.front(), block_size);
-            if (count == 0)
-                continue;
-            buffer.resize(count + 1);
-            buffer.back() = 0;
-            end = &buffer.front();
-        }
-        if (parser.Finished()) {
-            end = pp.skipWhitespace(end, &buffer.back());
-            if (end == nullptr)
-                continue;
-        }
-        try {
-            end = parser.Parse(end, &buffer.back(), pp);
-        }
-        catch (const io::Exception& e) {
-            std::cerr << e.what() << std::endl;
-            return 1;
-        }
-        if (!parser.Finished()) {
-            end = nullptr;
-            continue;
-        }
-        io::GenerateIn val;
-        parser.Swap(val.values);
-        try {
-            check_map(val.radius_minGiven(), val.radius_min(), 0.0f);
-            check_map(val.radius_maxGiven(), val.radius_max(), 1.0f);
-            check_map(val.radius_rangeGiven(), val.radius_range(), 1.0f);
-            check_map(val.offset_minGiven(), val.offset_min(), -1.0f);
-            check_map(val.offset_maxGiven(), val.offset_max(), 1.0f);
-            check_map(val.offset_rangeGiven(), val.offset_range(), 2.0f);
-            check_histogram(val.offset_histogramGiven(), val.offset_histogram());
-            check_histogram(val.radius_histogramGiven(), val.radius_histogram());
-        }
-        catch (const char* msg) {
-            std::cerr << msg << std::endl;
-            return 2;
-        }
-        if (val.seedGiven())
-            rnd.seed(val.seed());
-        Mapper radius = [&val](double x, double y, double r) {
-            return minrange(x, y, r, val.radius_min(), val.radius_range());
-        };
-        if (val.radius_minGiven() && val.radius_maxGiven()) {
-            radius = [&val](double x, double y, double r) {
-                return minmax(x, y, r, val.radius_min(), val.radius_max());
-            };
-        } else if (val.radius_maxGiven()) {
-            radius = [&val](double x, double y, double r) {
-                return maxrange(x, y, r, val.radius_max(), val.radius_range());
-            };
-        }
-        Mapper offset = [&val](double x, double y, double r) {
-            return minrange(x, y, r, val.offset_min(), val.offset_range());
-        };
-        if (val.offset_minGiven() && val.offset_maxGiven()) {
-            offset = [&val](double x, double y, double r) {
-                return minmax(x, y, r, val.offset_min(), val.offset_max());
-            };
-        } else if (val.offset_maxGiven()) {
-            offset = [&val](double x, double y, double r) {
-                return maxrange(x, y, r, val.offset_max(), val.offset_range());
-            };
-        }
-        normalize_histogram(val.offset_histogram());
-        RangeMap offset_map = histogram2rangemap(val.offset_histogram());
-        normalize_histogram(val.radius_histogram());
-        RangeMap radius_map = histogram2rangemap(val.radius_histogram());
-        std::cout << "{\"changes\":[";
-        for (std::uint32_t k = 0; k < val.count(); ++k) {
-            for (auto& v : change)
-                v = s * static_cast<double>(rnd());
-            change[2] = redistribute(change[2], radius_map);
-            change[3] = redistribute(change[3], offset_map);
-            generate_change(change, radius, offset);
-            io::Write(std::cout, change, output_buffer);
-            if (k + 1 != val.count())
-                std::cout << ',';
-        }
-        std::cout << "]}" << std::endl;
-    }
+    InputParser<io::ParserPool, io::GenerateIn_Parser, io::GenerateIn> ip(f);
+    int status = ip.ReadAndParse(generate);
     if (f)
         close(f);
-    return 0;
+    return status;
 }
 
 #else

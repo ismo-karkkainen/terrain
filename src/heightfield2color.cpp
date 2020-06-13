@@ -10,7 +10,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #else
-#include "FileDescriptorInput.hpp"
+#include "convenience.hpp"
 #endif
 #include <vector>
 typedef std::vector<std::vector<std::vector<float>>> Image;
@@ -47,55 +47,26 @@ static void color_map(
 }
 
 #if !defined(UNITTEST)
-static const size_t block_size = 65536;
+
+static int color(io::HeightField2ColorIn& Val) {
+    std::vector<char> output_buffer;
+    io::HeightField2ColorOut out;
+    color_map(out, Val);
+    Write(std::cout, out, output_buffer);
+    std::cout << std::endl;
+    return 0;
+}
 
 int main(int argc, char** argv) {
     int f = 0;
     if (argc > 1)
         f = open(argv[1], O_RDONLY);
-    FileDescriptorInput input(f);
-    std::vector<char> buffer(block_size + 1, 0);
-    io::ParserPool pp;
-    io::HeightField2ColorIn_Parser parser;
-    std::vector<char> output_buffer;
-    const char* end = nullptr;
-    while (!input.Ended()) {
-        if (end == nullptr) {
-            if (buffer.size() != block_size + 1)
-                buffer.resize(block_size + 1);
-            int count = input.Read(&buffer.front(), block_size);
-            if (count == 0)
-                continue;
-            buffer.resize(count + 1);
-            buffer.back() = 0;
-            end = &buffer.front();
-        }
-        if (parser.Finished()) {
-            end = pp.skipWhitespace(end, &buffer.back());
-            if (end == nullptr)
-                continue;
-        }
-        try {
-            end = parser.Parse(end, &buffer.back(), pp);
-        }
-        catch (const io::Exception& e) {
-            std::cerr << e.what() << std::endl;
-            return 1;
-        }
-        if (!parser.Finished()) {
-            end = nullptr;
-            continue;
-        }
-        io::HeightField2ColorIn val;
-        parser.Swap(val.values);
-        io::HeightField2ColorOut out;
-        color_map(out, val);
-        Write(std::cout, out, output_buffer);
-        std::cout << std::endl;
-    }
+    InputParser<io::ParserPool, io::HeightField2ColorIn_Parser,
+        io::HeightField2ColorIn> ip(f);
+    int status = ip.ReadAndParse(color);
     if (f)
         close(f);
-    return 0;
+    return status;
 }
 
 #else

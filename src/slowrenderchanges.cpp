@@ -10,7 +10,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #else
-#include "FileDescriptorInput.hpp"
+#include "convenience.hpp"
 #endif
 #include "render_io.hpp"
 #include <vector>
@@ -137,53 +137,24 @@ static void render_changes(io::RenderChangesIn& Val) {
     }
 }
 
-static const size_t block_size = 65536;
+static int render(io::RenderChangesIn& Val) {
+    std::cout << "{\"heightfield\":[";
+    render_changes(Val);
+    std::cout << "]}" << std::endl;
+    return 0;
+}
+
 
 int main(int argc, char** argv) {
     int f = 0;
     if (argc > 1)
         f = open(argv[1], O_RDONLY);
-    FileDescriptorInput input(f);
-    std::vector<char> buffer(block_size + 1, 0);
-    io::ParserPool pp;
-    io::RenderChangesIn_Parser parser;
-    const char* end = nullptr;
-    while (!input.Ended()) {
-        if (end == nullptr) {
-            if (buffer.size() != block_size + 1)
-                buffer.resize(block_size + 1);
-            int count = input.Read(&buffer.front(), block_size);
-            if (count == 0)
-                continue;
-            buffer.resize(count + 1);
-            buffer.back() = 0;
-            end = &buffer.front();
-        }
-        if (parser.Finished()) {
-            end = pp.skipWhitespace(end, &buffer.back());
-            if (end == nullptr)
-                continue;
-        }
-        try {
-            end = parser.Parse(end, &buffer.back(), pp);
-        }
-        catch (const io::Exception& e) {
-            std::cerr << e.what() << std::endl;
-            return 1;
-        }
-        if (!parser.Finished()) {
-            end = nullptr;
-            continue;
-        }
-        io::RenderChangesIn val;
-        parser.Swap(val.values);
-        std::cout << "{\"heightfield\":[";
-        render_changes(val);
-        std::cout << "]}" << std::endl;
-    }
+    InputParser<io::ParserPool, io::RenderChangesIn_Parser,
+        io::RenderChangesIn> ip(f);
+    int status = ip.ReadAndParse(render);
     if (f)
         close(f);
-    return 0;
+    return status;
 }
 
 #else

@@ -36,8 +36,6 @@ endif()
 
 set(Programs generatechanges slowrenderchanges renderchanges heightfield2color heightfield2model)
 
-set(Sources src/FileDescriptorInput.cpp)
-
 add_custom_target(parsers COMMENT "Generating types from README.md"
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/README.md
     COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io heightfield2color_io heightfield2model_io
@@ -45,7 +43,7 @@ add_custom_target(parsers COMMENT "Generating types from README.md"
     BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp heightfield2color_io.cpp heightfield2color_io.hpp heightfield2model_io.cpp heightfield2model_io.hpp)
 
 function(setup_main_program TGTNAME MAIN IO)
-    add_executable(${TGTNAME} ${MAIN} ${Sources} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp ${ARGN})
+    add_executable(${TGTNAME} ${MAIN} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp ${ARGN})
     add_dependencies(${TGTNAME} parsers)
     target_include_directories(${TGTNAME} SYSTEM PRIVATE /usr/local/include)
     target_include_directories(${TGTNAME} PRIVATE src)

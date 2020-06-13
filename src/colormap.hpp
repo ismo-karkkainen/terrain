@@ -6,6 +6,9 @@
 //
 // Licensed under Universal Permissive License. See License.txt.
 
+#if !defined(COLORMAP_HPP)
+#define COLORMAP_HPP
+
 // Helpers to deal with color map and gettting interpolated values.
 
 #include <vector>
@@ -15,3 +18,5 @@ void SortColorMap(std::vector<std::vector<float>>& Map);
 
 std::vector<float> Interpolated(
     float V, const std::vector<std::vector<float>>& Map);
+
+#endif

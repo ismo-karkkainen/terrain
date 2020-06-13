@@ -1,5 +1,5 @@
 //
-//  vertexfield.cpp
+//  heightfield2model.cpp
 //
 //  Created by Ismo Kärkkäinen on 8.6.2020.
 //  Copyright © 2020 Ismo Kärkkäinen. All rights reserved.
@@ -11,7 +11,7 @@
 #include <doctest/doctest.h>
 #include <algorithm>
 #else
-#include "FileDescriptorInput.hpp"
+#include "convenience.hpp"
 #endif
 #include <cinttypes>
 #include <vector>
@@ -95,69 +95,40 @@ static void create_output(io::HeightField2ModelOut& Out,
 }
 
 #if !defined(UNITTEST)
-static const size_t block_size = 65536;
+
+static int model(io::HeightField2ModelIn& Val) {
+    std::vector<char> output_buffer;
+    if (Val.heightfield().size() < 2) {
+        std::cerr << "Height field has less than 2 rows." << std::endl;
+        return 1;
+    }
+    if (Val.heightfield().front().size() < 2) {
+        std::cerr << "Height field has less than 2 columns." << std::endl;
+        return 1;
+    }
+    if (!Val.widthGiven())
+        Val.width() = Val.heightfield().front().size() - 1;
+    float min, max;
+    minmax(Val.heightfield(), min, max);
+    if (!Val.rangeGiven())
+        Val.range() = max - min;
+    io::HeightField2ModelOut out;
+    create_output(out, Val, min, max);
+    Write(std::cout, out, output_buffer);
+    std::cout << std::endl;
+    return 0;
+}
 
 int main(int argc, char** argv) {
     int f = 0;
     if (argc > 1)
         f = open(argv[1], O_RDONLY);
-    FileDescriptorInput input(f);
-    std::vector<char> buffer(block_size + 1, 0);
-    io::ParserPool pp;
-    io::HeightField2ModelIn_Parser parser;
-    std::vector<char> output_buffer;
-    const char* end = nullptr;
-    while (!input.Ended()) {
-        if (end == nullptr) {
-            if (buffer.size() != block_size + 1)
-                buffer.resize(block_size + 1);
-            int count = input.Read(&buffer.front(), block_size);
-            if (count == 0)
-                continue;
-            buffer.resize(count + 1);
-            buffer.back() = 0;
-            end = &buffer.front();
-        }
-        if (parser.Finished()) {
-            end = pp.skipWhitespace(end, &buffer.back());
-            if (end == nullptr)
-                continue;
-        }
-        try {
-            end = parser.Parse(end, &buffer.back(), pp);
-        }
-        catch (const io::Exception& e) {
-            std::cerr << e.what() << std::endl;
-            return 1;
-        }
-        if (!parser.Finished()) {
-            end = nullptr;
-            continue;
-        }
-        io::HeightField2ModelIn val;
-        parser.Swap(val.values);
-        if (val.heightfield().size() < 2) {
-            std::cerr << "Height field has less than 2 rows." << std::endl;
-            return 1;
-        }
-        if (val.heightfield().front().size() < 2) {
-            std::cerr << "Height field has less than 2 columns." << std::endl;
-            return 1;
-        }
-        if (!val.widthGiven())
-            val.width() = val.heightfield().front().size() - 1;
-        float min, max;
-        minmax(val.heightfield(), min, max);
-        if (!val.rangeGiven())
-            val.range() = max - min;
-        io::HeightField2ModelOut out;
-        create_output(out, val, min, max);
-        Write(std::cout, out, output_buffer);
-        std::cout << std::endl;
-    }
+    InputParser<io::ParserPool, io::HeightField2ModelIn_Parser,
+        io::HeightField2ModelIn> ip(f);
+    int status = ip.ReadAndParse(model);
     if (f)
         close(f);
-    return 0;
+    return status;
 }
 
 #else
