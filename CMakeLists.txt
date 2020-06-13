@@ -36,7 +36,7 @@ endif()
 
 set(Programs generatechanges slowrenderchanges renderchanges heightfield2color heightfield2model)
 
-set(Sources src/BlockQueue.cpp src/FileDescriptorInput.cpp)
+set(Sources src/FileDescriptorInput.cpp)
 
 add_custom_target(parsers COMMENT "Generating types from README.md"
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/README.md

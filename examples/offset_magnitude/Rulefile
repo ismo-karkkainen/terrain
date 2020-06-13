@@ -52,7 +52,7 @@
   - write-init
   - model
   commands:
-  - [feed, write, input, imagename, filename, input, image, image, direct, 16, depth]
+  - [feed, write, input, imagename, filename, direct, 16, depth, input, image, image]
   - feed wrmodel input modelname filename input vertices vertices input colors colors input tristrips tristrips
   - close write wrmodel
   - wait_process 60 write wrmodel

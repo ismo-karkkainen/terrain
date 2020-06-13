@@ -11,16 +11,14 @@
 #include <doctest/doctest.h>
 #else
 #include "FileDescriptorInput.hpp"
-#include "BlockQueue.hpp"
 #endif
+#include <vector>
 typedef std::vector<std::vector<std::vector<float>>> Image;
 #define IO_HEIGHTFIELD2COLOROUT_TYPE HeightField2ColorOut_Template<Image>
 #include "heightfield2color_io.hpp"
 #include "colormap.hpp"
-#include <vector>
 #include <iostream>
 #include <cmath>
-#include <ctime>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -49,43 +47,36 @@ static void color_map(
 }
 
 #if !defined(UNITTEST)
-static const size_t block_size = 1048576;
+static const size_t block_size = 65536;
 
 int main(int argc, char** argv) {
     int f = 0;
     if (argc > 1)
         f = open(argv[1], O_RDONLY);
     FileDescriptorInput input(f);
-    BlockQueue::BlockPtr buffer;
+    std::vector<char> buffer(block_size + 1, 0);
     io::ParserPool pp;
     io::HeightField2ColorIn_Parser parser;
     std::vector<char> output_buffer;
     const char* end = nullptr;
     while (!input.Ended()) {
         if (end == nullptr) {
-            if (!buffer)
-                buffer.reset(new BlockQueue::Block());
-            if (buffer->size() != block_size + 1)
-                buffer->resize(block_size + 1);
-            int count = input.Read(&buffer->front(), block_size);
-            if (count == 0) {
-                struct timespec ts;
-                ts.tv_sec = 0;
-                ts.tv_nsec = 100000000;
-                nanosleep(&ts, nullptr);
+            if (buffer.size() != block_size + 1)
+                buffer.resize(block_size + 1);
+            int count = input.Read(&buffer.front(), block_size);
+            if (count == 0)
                 continue;
-            }
-            buffer->resize(count + 1);
-            buffer->back() = 0;
-            end = &buffer->front();
+            buffer.resize(count + 1);
+            buffer.back() = 0;
+            end = &buffer.front();
         }
         if (parser.Finished()) {
-            end = pp.skipWhitespace(end, &buffer->back());
+            end = pp.skipWhitespace(end, &buffer.back());
             if (end == nullptr)
                 continue;
         }
         try {
-            end = parser.Parse(end, &buffer->back(), pp);
+            end = parser.Parse(end, &buffer.back(), pp);
         }
         catch (const io::Exception& e) {
             std::cerr << e.what() << std::endl;
