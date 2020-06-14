@@ -2,8 +2,8 @@
 - tgt: write
 - init:
   commands:
-  - run loader out JSON stdout out bytes stderr program files2mapped offset_min.json omin offset_max.json omax radius.json rad imagename.json imagename seed.json seed colormap.json colormap modelname.json modelname
-  - wait_data omin omax rad imagename seed colormap
+  - run loader out JSON stdout out bytes stderr program files2object omin offset_min.json omax offset_max.json rad radius.json imagename imagename.json seed seed.json colormap colormap.json modelname modelname.json rhist radius_hist.json
+  - wait_data omin omax rad imagename seed colormap rhist
 - generate-init:
   commands:
   - launch generate out JSON stdout out bytes stderr in JSON stdin program generatechanges
@@ -11,7 +11,7 @@
   - init
   - generate-init
   commands:
-  - [feed, generate, input, seed, seed, direct, 100000, count, input, rad, radius_min, input, rad, radius_max, input, omin, offset_min, input, omax, offset_max]
+  - [feed, generate, input, seed, seed, direct, 100000, count, input, rad, radius_min, input, rad, radius_max, input, rhist, radius_histogram, input, omin, offset_min, input, omax, offset_max]
   - close generate
   - wait_data changes
 - render-init:

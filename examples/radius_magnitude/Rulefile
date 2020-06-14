@@ -2,7 +2,7 @@
 - tgt: write
 - init:
   commands:
-  - run loader out JSON stdout out bytes stderr program files2mapped radius.json rad imagename.json imagename offset_histogram.json ohist seed.json seed colormap.json colormap
+  - run loader out JSON stdout out bytes stderr program files2object rad radius.json imagename imagename.json ohist offset_histogram.json seed seed.json colormap colormap.json
   - wait_data rad imagename ohist seed colormap
 - generate-init:
   commands:
