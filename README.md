@@ -232,6 +232,42 @@ heightfield2color_io:
 ...
 ```
 
+## heightfield2texture
+
+Takes a height field and produces matching texture coordinates and a texture
+given value vector.
+
+```
+---
+heightfield2texture_io:
+  namespace: io
+  types:
+    HeightField2TextureIn:
+      heightfield:
+        description: Input height field. Any array of arrays of floats will do.
+        format: [ ContainerStdVector, StdVector, Float ]
+      colormap:
+        description: |
+          Array of arrays of relative value in [0, 1] range and the color-value
+          to use to replace height values with.
+        format: [ ContainerStdVectorEqSize, StdVector, Float ]
+    HeightField2TextureOut:
+      texture:
+        description: An image that represents the colormap.
+        format: [ ContainerStdVector, ContainerStdVector, StdVector, Float ]
+        accessor: texture
+      coordinates:
+        description: Texture coordinates for the height values.
+        format: [ ContainerStdVector, StdVector, Float ]
+        accessor: coordinates
+  generate:
+    HeightField2TextureIn:
+      parser: true
+    HeightField2TextureOut:
+      writer: true
+...
+```
+
 # Examples
 
 Under directory examples, there are subdirectories. You need to have installed

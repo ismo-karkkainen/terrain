@@ -34,13 +34,13 @@ endif()
 
 #### Main programs
 
-set(Programs generatechanges slowrenderchanges renderchanges heightfield2color heightfield2model)
+set(Programs generatechanges slowrenderchanges renderchanges heightfield2color heightfield2model heightfield2texture)
 
 add_custom_target(parsers COMMENT "Generating types from README.md"
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/README.md
-    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io heightfield2color_io heightfield2model_io
+    COMMAND edicta -i ${CMAKE_CURRENT_LIST_DIR}/README.md -o pspecs render_io generate_io heightfield2color_io heightfield2model_io heightfield2texture_io
     COMMAND specificjson --input pspecs
-    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp heightfield2color_io.cpp heightfield2color_io.hpp heightfield2model_io.cpp heightfield2model_io.hpp)
+    BYPRODUCTS render_io.cpp render_io.hpp generate_io.cpp generate_io.hpp heightfield2color_io.cpp heightfield2color_io.hpp heightfield2model_io.cpp heightfield2model_io.hpp heightfield2texture_io.cpp heightfield2texture_io.hpp)
 
 function(setup_main_program TGTNAME MAIN IO)
     add_executable(${TGTNAME} ${MAIN} ${CMAKE_CURRENT_BINARY_DIR}/${IO}.cpp ${ARGN})
@@ -58,6 +58,7 @@ setup_main_program(renderchanges src/renderchanges.cpp render_io)
 setup_main_program(referencerenderchanges src/referencerenderchanges.cpp render_io)
 setup_main_program(heightfield2color src/heightfield2color.cpp heightfield2color_io src/colormap.cpp)
 setup_main_program(heightfield2model src/heightfield2model.cpp heightfield2model_io src/colormap.cpp)
+setup_main_program(heightfield2texture src/heightfield2texture.cpp heightfield2texture_io src/colormap.cpp)
 
 install(TARGETS ${Programs} RUNTIME DESTINATION bin)
 
@@ -83,6 +84,7 @@ setup_unittest_program(unittest-render src/renderchanges.cpp render_io)
 setup_unittest_program(unittest-referencerender src/referencerenderchanges.cpp render_io)
 setup_unittest_program(unittest-heightfield2color src/heightfield2color.cpp heightfield2color_io src/colormap.cpp)
 setup_unittest_program(unittest-heightfield2model src/heightfield2model.cpp heightfield2model_io src/colormap.cpp)
+setup_unittest_program(unittest-heightfield2texture src/heightfield2texture.cpp heightfield2texture_io src/colormap.cpp)
 
 function(add_test_prog PROG)
     add_executable(${PROG} IMPORTED)

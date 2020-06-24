@@ -42,6 +42,14 @@ static size_t binary_search(float V, const std::vector<std::vector<float>> Map)
     return low;
 }
 
+size_t IndexInMap(float V, const std::vector<std::vector<float>>& Map) {
+    if (V <= Map.front().front())
+        return 0;
+    if (Map.back().front() <= V)
+        return Map.size() - 1;
+    return binary_search(V, Map);
+}
+
 static void interpolate(std::vector<float>& Out,
     const float LowWeight, const std::vector<float>& Low,
     const float HighWeight, const std::vector<float>& High)

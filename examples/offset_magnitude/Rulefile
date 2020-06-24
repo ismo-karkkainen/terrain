@@ -27,32 +27,26 @@
 - convert-init:
   commands:
   - launch color out JSON stdout out bytes stderr in JSON stdin program heightfield2color
+  - launch texture out JSON stdout out bytes stderr in JSON stdin program heightfield2texture
+  - launch model out JSON stdout out bytes stderr in JSON stdin program heightfield2model
 - convert:
   - convert-init
   - render
   commands:
+  - feed model input heightfield heightfield
   - feed color input heightfield heightfield input colormap colormap
-  - close color
-  - wait_data image
-- model-init:
-  commands:
-  - launch model out JSON stdout out bytes stderr in JSON stdin program heightfield2model
-- model:
-  - model-init
-  - convert
-  commands:
-  - feed model input heightfield heightfield input colormap colormap
-  - close model
-  - wait_data vertices tristrips colors
+  - feed texture input heightfield heightfield input colormap colormap
+  - close color texture model
+  - wait_data image texture coordinates vertices tristrips
 - write-init:
   commands:
   - launch write out bytes stderr in JSON stdin program writeimage
-  - launch wrmodel out bytes stderr in JSON stdin program writegltf
+  - launch wrmodel out bytes stderr in JSON stdin program writeglb
 - write:
   - write-init
-  - model
+  - convert
   commands:
   - [feed, write, input, imagename, filename, direct, 16, depth, input, image, image]
-  - feed wrmodel input modelname filename input vertices vertices input colors colors input tristrips tristrips
+  - feed wrmodel input modelname filename input vertices vertices input tristrips tristrips input coordinates coordinates input texture texture
   - close write wrmodel
   - wait_process 60 write wrmodel
