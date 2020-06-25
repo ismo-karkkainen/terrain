@@ -13,8 +13,7 @@ do
     N="offset_$(echo $M | sed 's/[[-]//g' | sed 's/,/ /g' | cut -d ' ' -f 1)"
     echo $N
     echo "\"$N.tiff\"" > imagename.json
-    echo "\"$N.glb\"" > modelname.json
-    cat modelname.json
+    echo "\"$N\"" > modelname.json
     echo $M > offset_min.json
     echo $M | sed 's/-//g' > offset_max.json
     datalackey-make tgt -m $@

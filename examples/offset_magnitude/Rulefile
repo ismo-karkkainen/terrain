@@ -27,7 +27,6 @@
 - convert-init:
   commands:
   - launch color out JSON stdout out bytes stderr in JSON stdin program heightfield2color
-  - launch texture out JSON stdout out bytes stderr in JSON stdin program heightfield2texture
   - launch model out JSON stdout out bytes stderr in JSON stdin program heightfield2model
 - convert:
   - convert-init
@@ -35,18 +34,17 @@
   commands:
   - feed model input heightfield heightfield
   - feed color input heightfield heightfield input colormap colormap
-  - feed texture input heightfield heightfield input colormap colormap
-  - close color texture model
-  - wait_data image texture coordinates vertices tristrips
+  - close color model
+  - wait_data image vertices tristrips
 - write-init:
   commands:
   - launch write out bytes stderr in JSON stdin program writeimage
-  - launch wrmodel out bytes stderr in JSON stdin program writeglb
+  - launch wrmodel out bytes stderr in JSON stdin program writecollada
 - write:
   - write-init
   - convert
   commands:
   - [feed, write, input, imagename, filename, direct, 16, depth, input, image, image]
-  - feed wrmodel input modelname filename input vertices vertices input tristrips tristrips input coordinates coordinates input texture texture
+  - feed wrmodel input modelname filename input vertices vertices input tristrips tristrips
   - close write wrmodel
   - wait_process 60 write wrmodel

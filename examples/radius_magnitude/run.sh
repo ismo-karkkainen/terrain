@@ -10,11 +10,12 @@ echo "Seed for random number generation: $$"
 cat radiuses |
 while read M
 do
-    N="radius_$(echo $M | sed 's/[[]//g' | sed 's/,/ /g' | cut -d ' ' -f 1).tiff"
+    N="radius_$(echo $M | sed 's/[[]//g' | sed 's/,/ /g' | cut -d ' ' -f 1)"
     echo $N
-    echo "\"$N\"" > imagename.json
+    echo "\"$N.tiff\"" > imagename.json
+    echo "\"$N\"" > basename.json
     echo $M > radius.json
     datalackey-make tgt -m $@
 done
 
-rm -f seed.json colormap.json radius.json imagename.json
+rm -f seed.json colormap.json radius.json imagename.json basename.json
