@@ -2,8 +2,8 @@
 - tgt: write
 - init:
   commands:
-  - run loader out JSON stdout out bytes stderr program files2object omin offset_min.json omax offset_max.json rad radius.json imagename imagename.json seed seed.json colormap colormap.json modelname modelname.json rhist radius_hist.json
-  - wait_data omin omax rad imagename seed colormap rhist
+  - run loader out JSON stdout out bytes stderr program files2object omin offset_min.json omax offset_max.json rad :[[0.1]] imagename imagename.json seed seed.json colormap colormap.json modelname modelname.json count :50000 bitdepth :16 mapsize :900
+  - wait_data omin omax rad imagename seed colormap
 - generate-init:
   commands:
   - launch generate out JSON stdout out bytes stderr in JSON stdin program generatechanges
@@ -11,7 +11,7 @@
   - init
   - generate-init
   commands:
-  - [feed, generate, input, seed, seed, direct, 100000, count, input, rad, radius_min, input, rad, radius_max, input, rhist, radius_histogram, input, omin, offset_min, input, omax, offset_max]
+  - feed generate input seed seed input count count input rad radius_min input rad radius_max input omin offset_min input omax offset_max
   - close generate
   - wait_data changes
 - render-init:
@@ -21,7 +21,7 @@
   - render-init
   - generate
   commands:
-  - [feed, render, direct, 900, size, input, changes, changes]
+  - feed render input mapsize size input changes changes
   - close render
   - wait_data heightfield
 - convert-init:
@@ -44,7 +44,7 @@
   - write-init
   - convert
   commands:
-  - [feed, write, input, imagename, filename, direct, 16, depth, input, image, image]
+  - feed write input imagename filename input bitdepth depth input image image
   - feed wrmodel input modelname filename input vertices vertices input tristrips tristrips
   - close write wrmodel
   - wait_process 60 write wrmodel

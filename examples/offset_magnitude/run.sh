@@ -7,7 +7,7 @@ echo "Seed for random number generation: $$"
 
 ../simplecolormap simple > colormap.json
 
-cat offset_mins |
+cat offsets |
 while read M
 do
     N="offset_$(echo $M | sed 's/[[-]//g' | sed 's/,/ /g' | cut -d ' ' -f 1)"
