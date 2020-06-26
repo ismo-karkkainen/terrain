@@ -1,47 +1,37 @@
 ---
-- tgt: write
 - init:
   commands:
-  - run loader out JSON stdout out bytes stderr program files2object count count.json rad :[[0.1]] imagename imagename.json ohist :[1,0,0,0,0,0,0,1] seed seed.json colormap colormap.json modelname basename.json bitdepth :16 mapsize :900
+  - set pipes out JSON stdout out bytes stderr in JSON stdin
+  - set pipein out bytes stderr in JSON stdin
+  - set pipeout out JSON stdout out bytes stderr
+  - launch generate pipes program generatechanges
+  - launch render pipes program renderchanges
+  - launch color pipes program heightfield2color
+  - launch model pipes program heightfield2model
+  - launch write pipein program writeimage
+  - launch wrmodel pipein program writecollada
+  - run loader pipeout program files2object count count.json rad :[[0.1]] imagename imagename.json ohist :[1,0,0,0,0,0,0,1] seed seed.json colormap colormap.json modelname basename.json bitdepth :16 mapsize :900
   - wait_data count
-- generate-init:
-  commands:
-  - launch generate out JSON stdout out bytes stderr in JSON stdin program generatechanges
 - generate:
   - init
-  - generate-init
   commands:
   - feed generate input seed seed input count count input rad radius_min input rad radius_max input ohist offset_histogram
   - close generate
   - wait_data changes
-- render-init:
-  commands:
-  - launch render out JSON stdout out bytes stderr in JSON stdin program renderchanges
 - render:
-  - render-init
   - generate
   commands:
   - feed render input mapsize size input changes changes
   - close render
   - wait_data heightfield
-- convert-init:
-  commands:
-  - launch color out JSON stdout out bytes stderr in JSON stdin program heightfield2color
-  - launch model out JSON stdout out bytes stderr in JSON stdin program heightfield2model
 - convert:
-  - convert-init
   - render
   commands:
   - feed model input heightfield heightfield
   - feed color input heightfield heightfield input colormap colormap
   - close color model
   - wait_data image vertices tristrips
-- write-init:
-  commands:
-  - launch write out bytes stderr in JSON stdin program writeimage
-  - launch wrmodel out bytes stderr in JSON stdin program writecollada
 - write:
-  - write-init
   - convert
   commands:
   - feed write input imagename filename input image image input bitdepth depth

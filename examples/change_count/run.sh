@@ -15,7 +15,7 @@ do
     echo "\"$N.tiff\"" > imagename.json
     echo "\"$N\"" > basename.json
     echo "$M" > count.json
-    datalackey-make tgt -m $@
+    datalackey-make write -m $@
 done
 
 rm -f seed.json colormap.json count.json imagename.json basename.json

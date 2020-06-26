@@ -182,8 +182,9 @@ heightfield2model_io:
         format: [ ContainerStdVector, StdVector, Float ]
         accessor: vertices
       colors:
-        description: Array of RGB colors.
+        description: Array of RGB colors, present if colormap was given.
         format: [ ContainerStdVector, StdVector, Float ]
+        required: false
         accessor: colors
         checker: "colors.size() != 0"
       tristrips:
