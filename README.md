@@ -297,9 +297,9 @@ You need specificjson to generate source code from the specifications.
 You need cmake and a C++ compiler that supports 2017 standard. Assuming a build
 directory parallel to the terrain directory, you can use:
 
-    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=DEBUG ../terrain
-    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=RELEASE ../terrain
-    cmake -G Xcode
+    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug ../terrain
+    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../terrain
+    cmake -G Xcode -DCMAKE_BUILD_TYPE=Release ../terrain
 
 To specify the compiler, set for example:
 

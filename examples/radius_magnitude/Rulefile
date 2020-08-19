@@ -5,15 +5,15 @@
   - set pipein out bytes stderr in JSON stdin
   - set pipeout out JSON stdout out bytes stderr
   - run loader pipeout program files2object rad radius.json imagename imagename.json ohist :[1,0,0,0,0,0,0,1] seed seed.json colormap colormap.json modelname basename.json count :50000 bitdepth :16 mapsize :900
-  - launch generate pipes program generatechanges
+  - run generate pipes program generatechanges
   - wait_data rad imagename ohist seed colormap modelname
   - feed generate input seed seed input count count input rad radius_min input rad radius_max input ohist offset_histogram
   - close generate
-  - launch render pipes program renderchanges
-  - launch color pipes program heightfield2color
-  - launch model pipes program heightfield2model
-  - launch write pipein program writeimage
-  - launch wrmodel pipein program writecollada
+  - run render pipes program renderchanges
+  - run color pipes program heightfield2color
+  - run model pipes program heightfield2model
+  - run write pipein program writeimage
+  - run wrmodel pipein program writecollada
   - wait_data changes
   - feed render input mapsize size input changes changes
   - close render

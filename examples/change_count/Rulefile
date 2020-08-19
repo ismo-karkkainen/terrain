@@ -4,12 +4,12 @@
   - set pipes out JSON stdout out bytes stderr in JSON stdin
   - set pipein out bytes stderr in JSON stdin
   - set pipeout out JSON stdout out bytes stderr
-  - launch generate pipes program generatechanges
-  - launch render pipes program renderchanges
-  - launch color pipes program heightfield2color
-  - launch model pipes program heightfield2model
-  - launch write pipein program writeimage
-  - launch wrmodel pipein program writecollada
+  - run generate pipes program generatechanges
+  - run render pipes program renderchanges
+  - run color pipes program heightfield2color
+  - run model pipes program heightfield2model
+  - run write pipein program writeimage
+  - run wrmodel pipein program writecollada
   - run loader pipeout program files2object count count.json rad :[[0.1]] imagename imagename.json ohist :[1,0,0,0,0,0,0,1] seed seed.json colormap colormap.json modelname basename.json bitdepth :16 mapsize :900
   - wait_data count
 - generate:

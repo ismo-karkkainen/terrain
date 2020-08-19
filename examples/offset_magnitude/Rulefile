@@ -9,7 +9,7 @@
   - wait_data omin omax rad imagename seed colormap
 - generate-init: init
   commands:
-  - launch generate pipes program generatechanges
+  - run generate pipes program generatechanges
 - generate:
   - init
   - generate-init
@@ -19,7 +19,7 @@
   - wait_data changes
 - render-init: init
   commands:
-  - launch render pipes program renderchanges
+  - run render pipes program renderchanges
 - render:
   - render-init
   - generate
@@ -29,8 +29,8 @@
   - wait_data heightfield
 - convert-init: init
   commands:
-  - launch color pipes program heightfield2color
-  - launch model pipes program heightfield2model
+  - run color pipes program heightfield2color
+  - run model pipes program heightfield2model
 - convert:
   - convert-init
   - render
@@ -41,8 +41,8 @@
   - wait_data image vertices tristrips
 - write-init: init
   commands:
-  - launch write pipein program writeimage
-  - launch wrmodel pipein program writecollada
+  - run write pipein program writeimage
+  - run wrmodel pipein program writecollada
 - write:
   - write-init
   - convert
