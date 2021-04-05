@@ -6,6 +6,9 @@ All inputs and outputs are JSON objects with indicated keys. Each object must
 be in a single line, as the programs read input one line at a time and produce
 output for each line before reading the next line.
 
+YAML inside code blocks is used by specificjson, extracted using edicta, to
+produce source code that handles I/O. See repositories parallel to this one.
+
 # Usage
 
 ## generatechanges
