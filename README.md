@@ -320,6 +320,6 @@ the resulting executable.
 
 # License
 
-Copyright (C) 2020 Ismo Kärkkäinen
+Copyright © 2020-2021 Ismo Kärkkäinen
 
 Licensed under Universal Permissive License. See License.txt.

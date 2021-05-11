@@ -42,12 +42,16 @@
 - write-init: init
   commands:
   - run write pipein program writeimage
-  - run wrmodel pipein program writecollada
+  - run w_collada pipein program writecollada
+  - run w_gltf pipein program writegltf
+  - run w_glb pipein program writeglb
 - write:
   - write-init
   - convert
   commands:
   - feed write input imagename filename input bitdepth depth input image image
-  - feed wrmodel input modelname filename input vertices vertices input tristrips tristrips
-  - close write wrmodel
-  - wait_process 60 write wrmodel
+  - feed w_collada input modelname filename input vertices vertices input tristrips tristrips
+  - feed w_gltf input modelname filename input vertices vertices input tristrips tristrips
+  - feed w_glb input modelname filename input vertices vertices input tristrips tristrips
+  - close write w_collada w_gltf w_glb
+  - wait_process 60 write w_collada w_gltf w_glb
