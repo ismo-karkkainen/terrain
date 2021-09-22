@@ -288,8 +288,8 @@ names and commands that are executed.
 
 # Building
 
-For unit tests, you need https://github.com/onqtam/doctest to compile them.
-Install into location for which `#include <doctest/doctest.h>` works.
+For unit tests, https://github.com/onqtam/doctest has been included via
+git subtree.
 
 You need edicta to extract the input and output specifications from this file.
 You need specificjson to generate source code from the specifications.
