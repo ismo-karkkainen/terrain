@@ -294,8 +294,8 @@ git subtree.
 You need edicta to extract the input and output specifications from this file.
 You need specificjson to generate source code from the specifications.
 
-    https://github.com/ismo-karkkainen/edicta
-    https://github.com/ismo-karkkainen/specificjson
+    gem install edicta
+    gem install specificjson
 
 You need cmake and a C++ compiler that supports 2017 standard. Assuming a build
 directory parallel to the terrain directory, you can use:
