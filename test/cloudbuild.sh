@@ -6,8 +6,27 @@ R=$2
 
 export C="gem install edicta specificjson"
 $C
-cd $R
 
+# Scripts from installed gems not found (in OpenSUSE Tumbleweed)?
+for X in edicta specificjson
+do
+    $X --help >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        continue
+    fi
+    for P in /usr/lib64/ruby/gems
+    do
+        S=$(find $P -type f -name $X -perm -0555)
+        if [ $? -eq 0 ]; then
+            export PATH="$PATH:$(dirname $S)"
+            echo "Found $X in $S"
+            break
+        fi
+        echo "$X not found under $P"
+    done
+done
+
+cd $R
 for X in clang++ g++
 do
     export X
