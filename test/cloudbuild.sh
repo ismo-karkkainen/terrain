@@ -32,10 +32,11 @@ do
     export X
     mkdir build
     (
-        echo "Build $(cat _logs/commit.txt) on $D using $X at $(date '+%Y-%m-%d %H:%M')"
+        echo "Built on $D using $X at $(date '+%Y-%m-%d %H:%M')"
+        cat _logs/info.txt
+        echo "$C"
         (
             set -eu
-            echo "$C"
             cd build
             CXX=$X cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ..
             make -j 2

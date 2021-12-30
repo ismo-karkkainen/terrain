@@ -1,9 +1,6 @@
 steps:
-- name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-  entrypoint: "sh"
-  args:
-  - "-c"
-  - "mkdir _logs && cp README.md _logs && cd _logs && git log -1 --format='%H' > commit.txt && git log -1 --format='%H %cI %s' > info.txt"
+- name: "$_REPO/cloud-sdk:latest"
+  entrypoint: "/usr/tool/prepare.sh"
 - name: "$_REPO/fedora:latest"
   entrypoint: "sh"
   args: [ "-c", "$$PWD/test/cloudbuild.sh Fedora $$PWD" ]
@@ -16,16 +13,10 @@ steps:
 - name: "$_REPO/ubuntu:latest"
   entrypoint: "sh"
   args: [ "-c", "$$PWD/test/cloudbuild.sh Ubuntu $$PWD" ]
-- name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-  entrypoint: "tar"
+- name: "$_REPO/cloud-sdk:latest"
+  entrypoint: "/usr/tool/finish.sh"
   args:
-  - "-cvzf"
-  - "terrain.tgz"
-  - "_logs"
-- name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-  entrypoint: "gsutil"
-  args:
-  - "cp"
-  - "terrain.tgz"
-  - "gs://$_LOGS/terrain.tgz"
-timeout: "1200s"
+  - "$REPO_NAME"
+  - "$BRANCH_NAME"
+  - "$_LOGS"
+timeout: "1800s"
