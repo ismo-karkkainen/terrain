@@ -23,7 +23,7 @@ class InputParser {
 private:
     bool eof;
     int fd;
-    const size_t block_size = 65536;
+    const std::size_t block_size = 65536;
     std::vector<char> buffer;
     Pool pp;
     Parser parser;

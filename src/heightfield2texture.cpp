@@ -34,7 +34,7 @@ static void texture(
     Out.texture.back().reserve(map.size());
     for (auto& limit : map) {
         Out.texture.back().push_back(std::vector<float>(limit.size() - 1, 0.0f));
-        for (size_t k = 1; k < limit.size(); ++k)
+        for (std::size_t k = 1; k < limit.size(); ++k)
             Out.texture.back().back()[k - 1] = limit[k];
     }
 }
@@ -57,7 +57,7 @@ static void coordinates(
     for (auto& line : Val.heightfield())
         for (auto& value : line) {
             float v = (value - min) / range;
-            size_t idx = IndexInMap(v, map);
+            std::size_t idx = IndexInMap(v, map);
             float s;
             if (idx == 0 && v <= map.front().front())
                 s = 0.0f;
@@ -142,7 +142,7 @@ TEST_CASE("coordinates") {
         val.colormap().push_back(std::vector<float> { 1.0f, 1.0f, 0.5f, 0.0f });
         coordinates(out, val);
         REQUIRE(out.coordinates.size() == val.heightfield().size() * val.heightfield().front().size());
-        for (size_t k = 0; k < out.coordinates.size(); ++k)
+        for (std::size_t k = 0; k < out.coordinates.size(); ++k)
             REQUIRE(out.coordinates[k].size() == 2);
         REQUIRE(out.coordinates[0] == std::vector<float> { 0.0f, 0.5f });
         REQUIRE(out.coordinates[2] == std::vector<float> { 1.0f, 0.5f });

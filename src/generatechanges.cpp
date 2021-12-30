@@ -30,10 +30,10 @@ typedef std::function<double(double,double,double)> Mapper;
 
 static double value(double x, double y, io::GenerateIn::radius_minType& Map) {
     y *= Map.size() - 2;
-    size_t yidx = trunc(y);
+    std::size_t yidx = trunc(y);
     y -= yidx;
     double xx = x * (Map[yidx].size() - 2);
-    size_t xidx = trunc(xx);
+    std::size_t xidx = trunc(xx);
     xx -= xidx;
     double v = (1.0 - y) * ((1.0 - xx) * Map[yidx][xidx] + xx * Map[yidx][xidx + 1]);
     ++yidx;
@@ -106,9 +106,9 @@ static void check_histogram(
 
 static void normalize_histogram(io::GenerateIn::offset_histogramType& Hist) {
     double sum = 0.0;
-    for (size_t k = 0; k < Hist.size(); ++k)
+    for (std::size_t k = 0; k < Hist.size(); ++k)
         sum += Hist[k];
-    for (size_t k = 0; k < Hist.size(); ++k)
+    for (std::size_t k = 0; k < Hist.size(); ++k)
         Hist[k] /= sum;
 }
 
@@ -120,7 +120,7 @@ static RangeMap histogram2rangemap(
 {
     RangeMap map;
     double previous = 0.0;
-    for (size_t k = 0; k < Hist.size(); ++k) {
+    for (std::size_t k = 0; k < Hist.size(); ++k) {
         if (Hist[k] == 0.0) // Skip empty ranges.
             continue;
         map.push_back(std::tuple(previous, previous + Hist[k], double(Hist[k]),

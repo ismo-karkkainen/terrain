@@ -1,6 +1,6 @@
 # Terrain
 
-Various tools for generating random terrains using datalackey-tools.
+Various tools for generating random terrains using datalackeytools.
 
 All inputs and outputs are JSON objects with indicated keys. Each object must
 be in a single line, as the programs read input one line at a time and produce
@@ -277,8 +277,8 @@ heightfield2texture_io:
 Under directory examples, there are subdirectories. You need to have installed
 
     https://github.com/ismo-karkkainen/datalackey
-    https://github.com/ismo-karkkainen/datalackeyshell
     https://github.com/ismo-karkkainen/fileio
+    gem install datalackeytools
 
 In the subdirectories, the example can be run by running the run.sh script.
 

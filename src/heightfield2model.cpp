@@ -44,10 +44,10 @@ static void create_vertices(V3& Vertices,
 {
     Vertices.reserve(Heightfield.size() * Heightfield.front().size());
     const float zscale = Range / (Max - Min);
-    for (size_t y = 0; y < Heightfield.size(); ++y) {
+    for (std::size_t y = 0; y < Heightfield.size(); ++y) {
         const float yc = (y * Width) / (Heightfield.front().size() - 1);
         const std::vector<float>& row = Heightfield[y];
-        for (size_t x = 0; x < row.size(); ++x) {
+        for (std::size_t x = 0; x < row.size(); ++x) {
             float xc = (x * Width) / (row.size() - 1);
             float zc = zscale * row[x];
             Vertices.push_back(std::vector<float> { xc, yc, zc });
@@ -55,7 +55,9 @@ static void create_vertices(V3& Vertices,
     }
 }
 
-static void create_tristrips(TriStrips& TS, size_t Rows, size_t Columns) {
+static void create_tristrips(
+    TriStrips& TS, std::size_t Rows, std::size_t Columns)
+{
     // Each row into triangle strip using the indexes of the next row, too.
     // Last row is skipped.
     TS.reserve(Rows - 1);
@@ -221,9 +223,9 @@ TEST_CASE("create_vertices") {
         create_vertices(vertices, hf, 1.0f, 4.0f, -1.0f, 3.0f);
         REQUIRE(vertices.size() == hf.size() * hf.front().size());
         REQUIRE(vertices[0].size() == 3);
-        for (size_t y = 0; y < hf.size(); ++y)
-            for (size_t x = 0; x < hf.front().size(); ++x) {
-                const size_t idx = y * hf.front().size() + x;
+        for (std::size_t y = 0; y < hf.size(); ++y)
+            for (std::size_t x = 0; x < hf.front().size(); ++x) {
+                const std::size_t idx = y * hf.front().size() + x;
                 REQUIRE(vertices[idx][0] == x);
                 REQUIRE(vertices[idx][1] == y);
                 REQUIRE(vertices[idx][2] == hf[y][x]);
@@ -237,9 +239,9 @@ TEST_CASE("create_vertices") {
         create_vertices(vertices, hf, 2.0f, 2.0f, -1.0f, 3.0f);
         REQUIRE(vertices.size() == hf.size() * hf.front().size());
         REQUIRE(vertices[0].size() == 3);
-        for (size_t y = 0; y < hf.size(); ++y)
-            for (size_t x = 0; x < hf.front().size(); ++x) {
-                const size_t idx = y * hf.front().size() + x;
+        for (std::size_t y = 0; y < hf.size(); ++y)
+            for (std::size_t x = 0; x < hf.front().size(); ++x) {
+                const std::size_t idx = y * hf.front().size() + x;
                 REQUIRE(vertices[idx][0] == 2.0f * x);
                 REQUIRE(vertices[idx][1] == 2.0f * y);
                 REQUIRE(vertices[idx][2] == 0.5f * hf[y][x]);
@@ -253,9 +255,9 @@ TEST_CASE("create_vertices") {
         create_vertices(vertices, hf, 6.0f, 2.0f, -1.0f, 3.0f);
         REQUIRE(vertices.size() == hf.size() * hf.front().size());
         REQUIRE(vertices[0].size() == 3);
-        for (size_t y = 0; y < hf.size(); ++y)
-            for (size_t x = 0; x < hf.front().size(); ++x) {
-                const size_t idx = y * hf.front().size() + x;
+        for (std::size_t y = 0; y < hf.size(); ++y)
+            for (std::size_t x = 0; x < hf.front().size(); ++x) {
+                const std::size_t idx = y * hf.front().size() + x;
                 REQUIRE(vertices[idx][0] == 3.0f * x);
                 REQUIRE(vertices[idx][1] == 3.0f * y);
                 REQUIRE(vertices[idx][2] == 0.5f * hf[y][x]);
@@ -270,9 +272,9 @@ TEST_CASE("create_vertices") {
         create_vertices(vertices, hf, 6.0f, 2.0f, -1.0f, 3.0f);
         REQUIRE(vertices.size() == hf.size() * hf.front().size());
         REQUIRE(vertices[0].size() == 3);
-        for (size_t y = 0; y < hf.size(); ++y)
-            for (size_t x = 0; x < hf.front().size(); ++x) {
-                const size_t idx = y * hf.front().size() + x;
+        for (std::size_t y = 0; y < hf.size(); ++y)
+            for (std::size_t x = 0; x < hf.front().size(); ++x) {
+                const std::size_t idx = y * hf.front().size() + x;
                 REQUIRE(vertices[idx][0] == 6.0f * x);
                 REQUIRE(vertices[idx][1] == 6.0f * y);
                 REQUIRE(vertices[idx][2] == 0.5f * hf[y][x]);
@@ -284,32 +286,32 @@ TEST_CASE("create_tristrips") {
     TriStrips strips;
     SUBCASE("2x2") {
         strips.resize(0);
-        const size_t size = 2;
+        const std::size_t size = 2;
         create_tristrips(strips, size, size);
         REQUIRE(strips.size() == size - 1);
         REQUIRE(strips.front().size() == 2 * size);
-        for (size_t k = 1; k < strips.front().size(); k += 2)
+        for (std::size_t k = 1; k < strips.front().size(); k += 2)
             REQUIRE(strips.front()[k] - strips.front()[k - 1] == size);
-        for (size_t k = 2; k < strips.front().size(); k += 2)
+        for (std::size_t k = 2; k < strips.front().size(); k += 2)
             REQUIRE(strips.front()[k] - strips.front()[k - 2] == 1);
         std::sort(strips.front().begin(), strips.front().end());
-        for (size_t k = 0; k < strips.front().size(); ++k)
+        for (std::size_t k = 0; k < strips.front().size(); ++k)
             REQUIRE(strips.front()[k] == k);
     }
     SUBCASE("3x3") {
         strips.resize(0);
-        const size_t size = 3;
+        const std::size_t size = 3;
         create_tristrips(strips, size, size);
         REQUIRE(strips.size() == size - 1);
-        for (size_t n = 0; n < strips.size(); ++n) {
+        for (std::size_t n = 0; n < strips.size(); ++n) {
             auto& strip = strips[n];
             REQUIRE(strip.size() == 2 * size);
-            for (size_t k = 1; k < strip.size(); k += 2)
+            for (std::size_t k = 1; k < strip.size(); k += 2)
                 REQUIRE(strip[k] - strip[k - 1] == size);
-            for (size_t k = 2; k < strip.size(); k += 2)
+            for (std::size_t k = 2; k < strip.size(); k += 2)
                 REQUIRE(strip[k] - strip[k - 2] == 1);
             std::sort(strip.begin(), strip.end());
-            for (size_t k = 0; k < strip.size(); ++k)
+            for (std::size_t k = 0; k < strip.size(); ++k)
                 REQUIRE(strip[k] == k + n * size);
         }
     }

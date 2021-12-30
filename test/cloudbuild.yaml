@@ -28,4 +28,4 @@ steps:
   - "cp"
   - "terrain.tgz"
   - "gs://$_LOGS/terrain.tgz"
-timeout: "900s"
+timeout: "1200s"

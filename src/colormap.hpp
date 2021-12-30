@@ -16,7 +16,7 @@
 
 void SortColorMap(std::vector<std::vector<float>>& Map);
 
-size_t IndexInMap(float V, const std::vector<std::vector<float>>& Map);
+std::size_t IndexInMap(float V, const std::vector<std::vector<float>>& Map);
 
 std::vector<float> Interpolated(
     float V, const std::vector<std::vector<float>>& Map);

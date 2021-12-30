@@ -83,7 +83,7 @@ TEST_CASE("color_map") {
         val.colormap().push_back(std::vector<float> { 1.0f, 1.0f, 0.5f, 0.0f });
         color_map(out, val);
         REQUIRE(out.image.size() == val.heightfield().size());
-        for (size_t k = 0; k < out.image.size(); ++k)
+        for (std::size_t k = 0; k < out.image.size(); ++k)
             REQUIRE(out.image[k].size() == val.heightfield()[k].size());
         REQUIRE(out.image[0][0].size() == 3);
         REQUIRE(out.image[0][0] == std::vector<float> { 0.0f, 0.0f, 0.0f });
